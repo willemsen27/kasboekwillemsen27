@@ -894,6 +894,36 @@ img, svg { display: block; }
 .connection-status.ok    { background: #e8f5e9; color: #2e7d32; }
 .connection-status.error { background: var(--color-danger-lt); color: var(--color-danger); }
 
+/* ─── Zonnescherm bediening ──────────────────────────────────────────────────── */
+.sunscreen-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sunscreen-btn-open,
+.sunscreen-btn-stop,
+.sunscreen-btn-close {
+  width: 100%;
+  padding: 18px 16px;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  border: none;
+  border-radius: var(--radius-btn);
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  letter-spacing: 0.01em;
+}
+.sunscreen-btn-open:active,
+.sunscreen-btn-stop:active,
+.sunscreen-btn-close:active  { opacity: 0.82; transform: scale(0.98); }
+.sunscreen-btn-open:disabled,
+.sunscreen-btn-stop:disabled,
+.sunscreen-btn-close:disabled { opacity: 0.45; cursor: not-allowed; }
+.sunscreen-btn-open  { background: var(--color-primary);    color: #fff; }
+.sunscreen-btn-stop  { background: var(--color-warning);    color: #fff; }
+.sunscreen-btn-close { background: var(--color-text-muted); color: #fff; }
+
 /* ─── Type toggle (Uitgave / Ontvangen) ──────────────────────────────────────── */
 .type-toggle {
   display: flex;

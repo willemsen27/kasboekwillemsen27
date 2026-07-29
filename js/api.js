@@ -151,11 +151,25 @@ const Api = (() => {
     return post({ action: 'deleteBudgetOverride', budgetId, month });
   }
 
+  // ─── Zonnescherm ──────────────────────────────────────────────────────────────────
+  async function controlSunscreen(command) {
+    return post({ action: 'controlSunscreen', command });
+  }
+
+  async function getTuyaConfig() {
+    return get({ action: 'getTuyaConfig' });
+  }
+
+  async function saveTuyaConfig({ tuyaAccessId, tuyaSecret, tuyaDeviceId }) {
+    return post({ action: 'saveTuyaConfig', tuyaAccessId, tuyaSecret, tuyaDeviceId });
+  }
+
   return {
     getCategories, getTransactions, getStats, getBudgets, getBudgetStats,
     createTransaction, updateTransaction, deleteTransaction,
     createCategory, updateCategory, deleteCategory,
     createBudget, updateBudget, deleteBudget,
-    setBudgetOverride, deleteBudgetOverride
+    setBudgetOverride, deleteBudgetOverride,
+    controlSunscreen, getTuyaConfig, saveTuyaConfig
   };
 })();

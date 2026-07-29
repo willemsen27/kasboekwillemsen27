@@ -24,6 +24,7 @@ const Settings = (() => {
         <button class="tab-btn ${_activeTab === 'categories' ? 'active' : ''}" data-tab="categories">Categorieën</button>
         <button class="tab-btn ${_activeTab === 'budgets'    ? 'active' : ''}" data-tab="budgets">Budgetten</button>
         <button class="tab-btn ${_activeTab === 'app'        ? 'active' : ''}" data-tab="app">App</button>
+        <button class="tab-btn ${_activeTab === 'sunscreen'  ? 'active' : ''}" data-tab="sunscreen">Zonnescherm</button>
       </div>
       <div id="settings-content"></div>`;
 
@@ -44,6 +45,8 @@ const Settings = (() => {
       await _renderCategories(content);
     } else if (_activeTab === 'budgets') {
       await _renderBudgets(content);
+    } else if (_activeTab === 'sunscreen') {
+      _renderSunscreen(content);
     } else {
       _renderApp(content);
     }
@@ -344,6 +347,46 @@ const Settings = (() => {
       btn.disabled    = false;
       btn.textContent = 'Test verbinding';
     });
+  }
+
+  // ─── Tab: Zonnescherm ─────────────────────────────────────────────────────
+  function _renderSunscreen(content) {
+    const hasApp = Config.isConfigured;
+
+    content.innerHTML = `
+      <div class="card settings-app-section">
+        <h3>Bediening</h3>
+        ${!hasApp
+          ? `<p class="connection-status error" style="margin:0">⚠️ Stel eerst de App-verbinding in (tabblad App).</p>`
+          : `<div class="sunscreen-controls">
+              <button class="sunscreen-btn-open" id="btn-uitrollen">☀️&nbsp; Uitrollen</button>
+              <button class="sunscreen-btn-stop" id="btn-stop">⏸&nbsp; Stop</button>
+              <button class="sunscreen-btn-close" id="btn-oprollen">🍂&nbsp; Oprollen</button>
+            </div>
+            <div id="sunscreen-status" style="margin-top:12px"></div>`}
+      </div>`;
+
+    if (hasApp) {
+      const statusEl = content.querySelector('#sunscreen-status');
+
+      async function _sendCmd(command, label) {
+        const btns = content.querySelectorAll('.sunscreen-btn-open, .sunscreen-btn-stop, .sunscreen-btn-close');
+        btns.forEach(b => { b.disabled = true; });
+        statusEl.innerHTML = `<div class="connection-status">⏳ ${escapeHtml(label)}…</div>`;
+        try {
+          await Api.controlSunscreen(command);
+          statusEl.innerHTML = `<div class="connection-status ok">✓ ${escapeHtml(label)} gestuurd!</div>`;
+        } catch (err) {
+          statusEl.innerHTML = `<div class="connection-status error">✗ ${escapeHtml(err.message)}</div>`;
+        } finally {
+          btns.forEach(b => { b.disabled = false; });
+        }
+      }
+
+      content.querySelector('#btn-uitrollen').addEventListener('click', () => _sendCmd('close', 'Uitrollen'));
+      content.querySelector('#btn-stop')     .addEventListener('click', () => _sendCmd('stop',  'Stop'));
+      content.querySelector('#btn-oprollen') .addEventListener('click', () => _sendCmd('open',  'Oprollen'));
+    }
   }
 
   // ─── Modal helpers ──────────────────────────────────────────────────────────
