@@ -29,6 +29,18 @@ window.addEventListener('DOMContentLoaded', () => {
   // Redirect to settings if not configured
   if (!Config.isConfigured) {
     Router.navigate('settings');
+  } else {
+    // Preload huidige maand data op de achtergrond zodat de cache al gevuld is
+    // vóór de eerste navigatie. Fouten worden stil genegeerd.
+    const _ym = currentYearMonth();
+    const _r  = getMonthRange(_ym.year, _ym.month);
+    Promise.all([
+      Api.getCategories(),
+      Api.getBudgets(),
+      Api.getTransactions({ from: _r.from, to: _r.to }),
+      Api.getStats(_r.from, _r.to),
+      Api.getBudgetStats(_r.from, _r.to)
+    ]).catch(() => {});
   }
 });
 

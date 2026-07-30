@@ -85,7 +85,15 @@ const TransactionForm = (() => {
 
       <div class="form-group">
         <label class="form-label" for="tf-date">Datum</label>
-        <input id="tf-date" class="input" type="date" value="${escapeHtml(prefill.date)}" required>
+        <div class="date-input-wrap">
+          <input id="tf-date" class="input" type="text" inputmode="numeric"
+                 placeholder="dd-mm-yyyy" maxlength="10"
+                 value="${escapeHtml(_isoToDisplay(prefill.date))}">
+          <input id="tf-date-picker" type="date" class="date-hidden-picker" tabindex="-1">
+          <button type="button" class="date-picker-btn" id="tf-date-cal" title="Kalender openen">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>
+          </button>
+        </div>
       </div>
 
       <div class="form-group">
@@ -116,6 +124,26 @@ const TransactionForm = (() => {
 
     _setTypeUI(modal);
 
+    // Auto-format datum naar dd-mm-yyyy tijdens typen (streepjes worden automatisch ingevoegd)
+    modal.querySelector('#tf-date').addEventListener('input', e => {
+      const raw = e.target.value.replace(/\D/g, '').slice(0, 8);
+      let fmt = raw;
+      if (raw.length >= 3) fmt = raw.slice(0, 2) + '-' + raw.slice(2);
+      if (raw.length >= 5) fmt = raw.slice(0, 2) + '-' + raw.slice(2, 4) + '-' + raw.slice(4);
+      e.target.value = fmt;
+    });
+
+    // Kalender-knop opent native datumkiezer; resultaat wordt gesynchroniseerd naar het tekstveld
+    modal.querySelector('#tf-date-cal').addEventListener('click', () => {
+      const picker = modal.querySelector('#tf-date-picker');
+      const iso = _displayToIso(modal.querySelector('#tf-date').value.trim());
+      if (iso) picker.value = iso;
+      try { picker.showPicker(); } catch { picker.click(); }
+    });
+    modal.querySelector('#tf-date-picker').addEventListener('change', e => {
+      if (e.target.value) modal.querySelector('#tf-date').value = _isoToDisplay(e.target.value);
+    });
+
     modal.querySelector('#btn-uitgave').addEventListener('click',   () => { _type = 'uitgave';   _setTypeUI(modal); });
     modal.querySelector('#btn-ontvangen').addEventListener('click', () => { _type = 'ontvangen'; _setTypeUI(modal); });
     modal.querySelector('#tf-cancel').addEventListener('click',     () => close());
@@ -136,12 +164,13 @@ const TransactionForm = (() => {
   }
 
   async function _submit(modal) {
-    const date        = modal.querySelector('#tf-date').value.trim();
+    const dateDisplay = modal.querySelector('#tf-date').value.trim();
+    const date        = _displayToIso(dateDisplay);
     const amountRaw   = parseFloat(modal.querySelector('#tf-amount').value);
     const categoryId  = modal.querySelector('#tf-category').value;
     const description = modal.querySelector('#tf-desc').value.trim();
 
-    if (!date)              { showToast('Kies een datum.', 'error');        return; }
+    if (!date)              { showToast('Voer een geldige datum in (dd-mm-yyyy).', 'error'); return; }
     if (!(amountRaw > 0))   { showToast('Voer een bedrag in.',   'error'); return; }
     if (!categoryId)        { showToast('Kies een categorie.',   'error'); return; }
 
@@ -169,6 +198,20 @@ const TransactionForm = (() => {
       btn.disabled    = false;
       btn.textContent = _editingId ? 'Opslaan' : 'Toevoegen';
     }
+  }
+
+  // yyyy-mm-dd  →  dd-mm-yyyy  (voor weergave in het formulier)
+  function _isoToDisplay(iso) {
+    if (!iso || iso.length < 10) return '';
+    return iso.slice(8, 10) + '-' + iso.slice(5, 7) + '-' + iso.slice(0, 4);
+  }
+
+  // dd-mm-yyyy  →  yyyy-mm-dd  (voor de API)
+  function _displayToIso(display) {
+    if (!display) return '';
+    const m = display.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (!m) return '';
+    return `${m[3]}-${m[2]}-${m[1]}`;
   }
 
   return { openNew, openEdit, close };

@@ -127,9 +127,11 @@ const Settings = (() => {
   }
 
   function _openCategoryModal(content, existing) {
-    const isEdit    = !!existing;
-    const selColor  = existing?.color || PASTEL_COLORS[0];
-    const selBudget = existing?.budget_id || '';
+    const isEdit       = !!existing;
+    const selColor     = existing?.color || PASTEL_COLORS[0];
+    const selBudget    = existing?.budget_id || '';
+    const selColorHex  = /^#[0-9a-fA-F]{6}$/i.test(selColor) ? selColor : PASTEL_COLORS[0];
+    const isCustomColor = !PASTEL_COLORS.includes(selColor);
 
     const budgetOpts = `<option value="">Geen budget</option>` +
       _budgets.map(b => `<option value="${escapeHtml(b.id)}" ${selBudget === b.id ? 'selected' : ''}>${escapeHtml(b.name)}</option>`).join('');
@@ -147,6 +149,11 @@ const Settings = (() => {
       <div class="form-group">
         <label class="form-label">Kleur</label>
         <div class="color-picker-grid" id="cm-colors">${colorSwatches}</div>
+        <div class="color-custom-row">
+          <span class="color-custom-label">Eigen kleur</span>
+          <input type="color" id="cm-color-native" class="color-native-picker" value="${escapeHtml(selColorHex)}">
+          <input type="text" id="cm-color-hex" class="input color-hex-input" placeholder="#b5d5c5" maxlength="7" value="${isCustomColor ? escapeHtml(selColor) : ''}">
+        </div>
         <input type="hidden" id="cm-color" value="${escapeHtml(selColor)}">
       </div>
       <div class="form-group">
@@ -165,7 +172,33 @@ const Settings = (() => {
         currentColor = sw.dataset.color;
         modal.querySelectorAll('.color-swatch').forEach(s => s.classList.toggle('selected', s.dataset.color === currentColor));
         modal.querySelector('#cm-color').value = currentColor;
+        modal.querySelector('#cm-color-native').value = currentColor;
+        modal.querySelector('#cm-color-hex').value = currentColor;
       });
+    });
+
+    const nativePicker = modal.querySelector('#cm-color-native');
+    const hexInput     = modal.querySelector('#cm-color-hex');
+
+    // Native OS kleurkiezer → sync hex-veld en currentColor, deselecteer swatches
+    nativePicker.addEventListener('input', () => {
+      const hex = nativePicker.value;
+      hexInput.value = hex;
+      currentColor = hex;
+      modal.querySelector('#cm-color').value = hex;
+      modal.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+    });
+
+    // Hex-invoer → sync native picker zodra het een geldige 7-char hex is
+    hexInput.addEventListener('input', () => {
+      let val = hexInput.value.trim();
+      if (!val.startsWith('#')) val = '#' + val;
+      if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+        nativePicker.value = val;
+        currentColor = val;
+        modal.querySelector('#cm-color').value = val;
+        modal.querySelectorAll('.color-swatch').forEach(s => s.classList.toggle('selected', s.dataset.color === val));
+      }
     });
 
     modal.querySelector('#cm-cancel').addEventListener('click', () => _removeModal());

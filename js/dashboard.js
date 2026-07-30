@@ -3,8 +3,11 @@
 const Dashboard = (() => {
   let _year, _month;
   let _activeBudgetId = '';
-  let _chart = null;
+  let _chart  = null;
+  let _chart2 = null;
+  let _hiddenBudgets = new Set(); // bijhouden welke budgetten verborgen zijn in het staafdiagram
   let _budgets = [];
+  let _categories = [];
 
   // ─── Public render ──────────────────────────────────────────────────────────
   async function render() {
@@ -29,9 +32,9 @@ const Dashboard = (() => {
     }
 
     try {
-      // Load budgets once for the filter dropdown
-      if (_budgets.length === 0) {
-        _budgets = await Api.getBudgets();
+      // Laad budgetten én categorieën samen (categorieën nodig voor client-side budgetfilter)
+      if (_budgets.length === 0 || _categories.length === 0) {
+        [_budgets, _categories] = await Promise.all([Api.getBudgets(), Api.getCategories()]);
       }
       _renderFilterBar(el);
       await _loadAndRender(el);
@@ -92,14 +95,32 @@ const Dashboard = (() => {
     const { from, to } = getMonthRange(_year, _month);
     const monthStr = _year + '-' + String(_month).padStart(2, '0');
 
-    const [stats, transactions, budgetStats] = await Promise.all([
-      Api.getStats(from, to, _activeBudgetId || undefined),
-      Api.getTransactions({ from, to, budgetId: _activeBudgetId || undefined }),
-      _activeBudgetId ? Api.getBudgetStats(from, to) : Promise.resolve(null)
+    // Haal alles ongefilterd op — zelfde cache-sleutel ongeacht het budgetfilter.
+    // Client-side filteren is instant; server-side filteren per budgetwisseling duurde 4–5s.
+    const [allStats, allTransactions, budgetStats] = await Promise.all([
+      Api.getStats(from, to),
+      Api.getTransactions({ from, to }),
+      Api.getBudgetStats(from, to)
     ]);
 
-    // Destroy old chart
-    if (_chart) { _chart.destroy(); _chart = null; }
+    // Client-side filter op actief budget
+    const stats = _activeBudgetId
+      ? allStats.filter(s => {
+          const cat = _categories.find(c => c.id === s.category_id || c.name === s.category_name);
+          return cat && cat.budget_id === _activeBudgetId;
+        })
+      : allStats;
+
+    const transactions = _activeBudgetId
+      ? allTransactions.filter(t => {
+          const cat = _categories.find(c => c.id === t.category_id);
+          return cat && cat.budget_id === _activeBudgetId;
+        })
+      : allTransactions;
+
+    // Destroy old charts
+    if (_chart)  { _chart.destroy();  _chart  = null; }
+    if (_chart2) { _chart2.destroy(); _chart2 = null; }
 
     // Totals
     const totalSpent    = stats.reduce((s, c) => s + (c.spent    || 0), 0);
@@ -193,6 +214,17 @@ const Dashboard = (() => {
         <div class="card-title">Top categorieën</div>
         <div class="top-categories-list">${top3Html}</div>
       </div>
+      ${budgetStats.length > 0 ? `
+        <div class="card budget-bar-card">
+          <div class="card-title">Budget vs Uitgegeven</div>
+          <div class="budget-toggle-chips">
+            ${budgetStats.map(b => `<button class="budget-toggle-btn${_hiddenBudgets.has(b.budget_id) ? ' inactive' : ''}" data-bid="${escapeHtml(b.budget_id)}"><span class="budget-toggle-dot" style="background:${_barColor(b.spent, b.total_available)}"></span>${escapeHtml(b.budget_name)}</button>`).join('')}
+          </div>
+          <div class="budget-bar-container">
+            <div id="dash-budget-empty" class="text-sm text-muted" style="display:none;text-align:center;padding:32px 0">Alle budgetten zijn verborgen — klik een label hierboven om ze terug te tonen.</div>
+            <canvas id="dash-budget-chart"></canvas>
+          </div>
+        </div>` : ''}
       <div class="flex-between mb-8">
         <div class="card-title" style="margin:0">Recente transacties</div>
         <button class="btn btn-ghost btn-sm" onclick="Router.navigate('transactions')">Alle →</button>
@@ -215,12 +247,40 @@ const Dashboard = (() => {
             }]
           },
           options: {
+            // aspectRatio < 1 makes the canvas taller than wide, giving the
+            // bottom legend more room so items are never clipped.
+            aspectRatio: 0.8,
             plugins: { legend: { position: 'bottom', labels: { font: { size: 12 }, boxWidth: 12, padding: 12 } } },
             cutout: '65%'
           }
         });
       }
     }
+
+    // Teken het budget staafdiagram en koppel de toggle-chips
+    _drawBudgetChart(budgetStats);
+    content.querySelectorAll('.budget-toggle-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const bid = btn.dataset.bid;
+        if (_hiddenBudgets.has(bid)) {
+          _hiddenBudgets.delete(bid);
+          btn.classList.remove('inactive');
+        } else {
+          _hiddenBudgets.add(bid);
+          btn.classList.add('inactive');
+        }
+        _drawBudgetChart(budgetStats);
+      });
+    });
+
+    // Prefetch aangrenzende maanden op de achtergrond voor instant navigatie
+    const _pm = prevMonth(_year, _month), _nm = nextMonth(_year, _month);
+    [_pm, _nm].forEach(ym => {
+      const r = getMonthRange(ym.year, ym.month);
+      Api.getStats(r.from, r.to).catch(() => {});
+      Api.getTransactions(r).catch(() => {});
+      Api.getBudgetStats(r.from, r.to).catch(() => {});
+    });
   }
 
   function _pct(spent, available) {
@@ -234,6 +294,79 @@ const Dashboard = (() => {
     if (r >= 1.0) return 'var(--color-danger)';
     if (r >= 0.75) return 'var(--color-warning)';
     return 'var(--color-success)';
+  }
+
+  function _drawBudgetChart(budgetStats) {
+    if (_chart2) { _chart2.destroy(); _chart2 = null; }
+    const canvas = document.getElementById('dash-budget-chart');
+    if (!canvas) return;
+
+    const visible = budgetStats.filter(b => !_hiddenBudgets.has(b.budget_id));
+    const emptyEl = document.getElementById('dash-budget-empty');
+
+    if (visible.length === 0) {
+      canvas.style.display = 'none';
+      if (emptyEl) emptyEl.style.display = 'block';
+      return;
+    }
+    canvas.style.display = 'block';
+    if (emptyEl) emptyEl.style.display = 'none';
+
+    _chart2 = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: visible.map(b => b.budget_name),
+        datasets: [
+          {
+            label: 'Budget',
+            data: visible.map(b => b.total_available),
+            backgroundColor: 'rgba(106,158,122,1)',
+            borderColor: 'rgba(106,158,122,1)',
+            borderWidth: 0,
+            borderRadius: 6,
+            borderSkipped: false
+          },
+          {
+            label: 'Uitgegeven',
+            data: visible.map(b => b.spent),
+            backgroundColor: 'rgba(229,115,115,0.9)',
+            borderColor: 'rgba(229,115,115,0.9)',
+            borderWidth: 0,
+            borderRadius: 6,
+            borderSkipped: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { font: { size: 12 }, boxWidth: 12, padding: 10 } },
+          tooltip: {
+            callbacks: {
+              label: c => ` ${c.dataset.label}: ${formatCurrency(c.raw)}`
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+          y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(0,0,0,0.05)' },
+            ticks: { font: { size: 11 }, callback: v => '\u20ac\u00a0' + v.toLocaleString('nl-NL') }
+          }
+        }
+      }
+    });
+  }
+
+  // Geeft een rgba-kleur op basis van budget-benutting (voor Chart.js, geen CSS vars)
+  function _barColor(spent, available) {
+    if (!available || available <= 0) return spent > 0 ? 'rgba(229,115,115,0.85)' : 'rgba(129,199,132,0.85)';
+    const r = spent / available;
+    if (r >= 1.0)  return 'rgba(229,115,115,0.85)'; // rood — over budget
+    if (r >= 0.75) return 'rgba(255,183,77,0.85)';  // oranje — bijna op
+    return 'rgba(129,199,132,0.85)';                  // groen — ruimte over
   }
 
   function _iconChevronLeft() {

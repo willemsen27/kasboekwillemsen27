@@ -4,6 +4,7 @@ const Transactions = (() => {
   let _year, _month;
   let _activeCategoryId = '';
   let _activeBudgetId   = '';
+  let _sortOrder        = 'date-desc'; // standaard: nieuw naar oud
   let _categories       = [];
   let _budgets          = [];
 
@@ -28,7 +29,15 @@ const Transactions = (() => {
     }
 
     try {
-      [_categories, _budgets] = await Promise.all([Api.getCategories(), Api.getBudgets()]);
+      const { from, to } = getMonthRange(_year, _month);
+      // Haal referentiedata én transacties in één parallelle ronde op.
+      // Voorheen: categories+budgets wachten → dan pas transactions → 2 seriële API-rondes.
+      // Nu: alles tegelijk → 1 ronde. _loadTransactions raakt daarna direct de cache.
+      [_categories, _budgets] = await Promise.all([
+        Api.getCategories(),
+        Api.getBudgets(),
+        Api.getTransactions({ from, to }) // cache warming
+      ]);
       await _renderAll(el);
     } catch (err) {
       el.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div>
@@ -74,6 +83,12 @@ const Transactions = (() => {
           <select class="select" id="tr-budget-filter">${budgetOpts}</select>
           <select class="select" id="tr-cat-filter">${catOpts}</select>
         </div>
+        <select class="select" id="tr-sort">
+          <option value="date-desc"   ${_sortOrder === 'date-desc'   ? 'selected' : ''}>Nieuw naar oud</option>
+          <option value="date-asc"    ${_sortOrder === 'date-asc'    ? 'selected' : ''}>Oud naar nieuw</option>
+          <option value="amount-desc" ${_sortOrder === 'amount-desc' ? 'selected' : ''}>Duur naar goedkoopst</option>
+          <option value="amount-asc"  ${_sortOrder === 'amount-asc'  ? 'selected' : ''}>Goedkoopst naar duur</option>
+        </select>
       </div>
       <div id="tr-totals"></div>
       <div id="tr-list"></div>`;
@@ -115,6 +130,12 @@ const Transactions = (() => {
       const { from, to } = getMonthRange(_year, _month);
       await _loadTransactions(el, from, to);
     });
+
+    el.querySelector('#tr-sort').addEventListener('change', async e => {
+      _sortOrder = e.target.value;
+      const { from, to } = getMonthRange(_year, _month);
+      await _loadTransactions(el, from, to);
+    });
   }
 
   async function _loadTransactions(el, from, to) {
@@ -123,11 +144,19 @@ const Transactions = (() => {
     listEl.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>Laden…</span></div>';
 
     try {
-      const transactions = await Api.getTransactions({
-        from,
-        to,
-        categoryId: _activeCategoryId || undefined,
-        budgetId:   _activeBudgetId   || undefined
+      // Haal altijd ALLE transacties van de maand op in één call (geen server-filter).
+      // Elke filter-combinatie had een aparte cache-sleutel → 4-5s API-aanroep bij elke
+      // filterwijziging. Nu is er één cache-entry per maand en is filteren ~instant.
+      const allTransactions = await Api.getTransactions({ from, to });
+
+      // Client-side filteren op categorie en/of budget (0ms)
+      const transactions = allTransactions.filter(t => {
+        if (_activeCategoryId && t.category_id !== _activeCategoryId) return false;
+        if (_activeBudgetId) {
+          const cat = _categories.find(c => c.id === t.category_id);
+          if (!cat || cat.budget_id !== _activeBudgetId) return false;
+        }
+        return true;
       });
 
       // Compute totals
@@ -147,6 +176,16 @@ const Transactions = (() => {
           <span><span class="totals-item-label">Netto: </span><span class="totals-item-value ${nettoClass}">${netto < 0 ? '−\u00a0' : ''}${formatCurrency(netto)}</span></span>
         </div>`;
 
+      // Sorteer client-side op basis van geselecteerde volgorde
+      const sorted = [...transactions].sort((a, b) => {
+        switch (_sortOrder) {
+          case 'date-asc':    return a.date.localeCompare(b.date);
+          case 'amount-desc': return Math.abs(parseFloat(b.amount)) - Math.abs(parseFloat(a.amount));
+          case 'amount-asc':  return Math.abs(parseFloat(a.amount)) - Math.abs(parseFloat(b.amount));
+          default:            return b.date.localeCompare(a.date); // date-desc
+        }
+      });
+
       if (transactions.length === 0) {
         listEl.innerHTML = `<div class="empty-state">
           <div class="empty-state-icon">📋</div>
@@ -157,7 +196,7 @@ const Transactions = (() => {
         return;
       }
 
-      listEl.innerHTML = transactions.map(t => {
+      listEl.innerHTML = sorted.map(t => {
         const isReceived = parseFloat(t.amount) < 0;
         const cat = _categories.find(c => c.id === t.category_id);
         const catHtml = cat
@@ -189,7 +228,7 @@ const Transactions = (() => {
       // Bind edit / delete
       listEl.querySelectorAll('[data-action="edit"]').forEach(btn => {
         btn.addEventListener('click', () => {
-          const tx = transactions.find(t => t.id === btn.dataset.id);
+          const tx = sorted.find(t => t.id === btn.dataset.id);
           if (tx) TransactionForm.openEdit(tx);
         });
       });
@@ -206,6 +245,11 @@ const Transactions = (() => {
           }
         });
       });
+
+      // Prefetch vorige en volgende maand op de achtergrond — maakt maandnavigatie instant
+      const _pm = prevMonth(_year, _month), _nm = nextMonth(_year, _month);
+      Api.getTransactions(getMonthRange(_pm.year, _pm.month)).catch(() => {});
+      Api.getTransactions(getMonthRange(_nm.year, _nm.month)).catch(() => {});
 
     } catch (err) {
       listEl.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div>

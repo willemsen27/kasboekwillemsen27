@@ -247,6 +247,44 @@ img, svg { display: block; }
 }
 .input-prefix + .input { padding-left: 26px; }
 
+/* ─── Date input with calendar button ───────────────────────────────────────── */
+.date-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.date-input-wrap .input {
+  flex: 1;
+  padding-right: 44px;
+}
+.date-hidden-picker {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+.date-picker-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.date-picker-btn:hover { background: var(--color-primary-lt); color: var(--color-primary); }
+.date-picker-btn svg { width: 18px; height: 18px; }
+
 /* ─── Chip ───────────────────────────────────────────────────────────────────── */
 .chip {
   display: inline-flex;
@@ -516,7 +554,7 @@ img, svg { display: block; }
 
 .chart-container {
   position: relative;
-  max-width: 280px;
+  max-width: 340px;   /* wider → more legend items per row → fewer rows cut off */
   margin: 8px auto;
 }
 
@@ -684,10 +722,50 @@ img, svg { display: block; }
   font-weight: 600;
   margin-top: 4px;
 }
+
+/* ─── Budget staafdiagram ──────────────────────────────────────────────────────────────── */
+.budget-toggle-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.budget-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1.5px solid var(--color-border);
+  border-radius: 20px;
+  background: var(--bg-card);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.budget-toggle-btn:hover { border-color: var(--color-primary); }
+.budget-toggle-btn.inactive {
+  opacity: 0.35;
+  text-decoration: line-through;
+}
+.budget-toggle-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.budget-bar-container {
+  position: relative;
+  height: 220px;
+}
 .budget-card-edit {
-  position: absolute;
-  top: 12px;
-  right: 12px;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 8px;
 }
 
 /* ─── Import ─────────────────────────────────────────────────────────────────── */
@@ -854,6 +932,44 @@ img, svg { display: block; }
 .color-swatch:hover   { transform: scale(1.15); }
 .color-swatch.selected { border-color: var(--color-text); }
 
+/* ─── Custom color picker ──────────────────────────────────────────────────────────── */
+.color-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+}
+.color-custom-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.color-native-picker {
+  width: 38px;
+  height: 38px;
+  padding: 2px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-input);
+  cursor: pointer;
+  background: none;
+  flex-shrink: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.color-native-picker::-webkit-color-swatch-wrapper { padding: 2px; }
+.color-native-picker::-webkit-color-swatch { border-radius: 6px; border: none; }
+.color-native-picker::-moz-color-swatch { border-radius: 6px; border: none; }
+.color-hex-input {
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  padding: 8px 10px;
+  letter-spacing: 0.05em;
+}
+
 .settings-app-section h3 {
   font-size: 15px;
   font-weight: 700;
@@ -967,8 +1083,78 @@ img, svg { display: block; }
 .flex-between { display: flex; align-items: center; justify-content: space-between; }
 .gap-8 { gap: 8px; }
 
-/* ─── Desktop tweak ──────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   Responsive Layout — navigatie blijft altijd onderaan
+   640px  — tablet:  bredere gecentreerde content (740px)
+   1024px — desktop: brede gecentreerde content (960px) + 2-koloms dashboard
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 480px+: modal wordt centered dialog ── */
 @media (min-width: 480px) {
-  .modal-overlay { align-items: center; }
+  .modal-overlay { align-items: center; padding-bottom: 0; }
   .modal { border-radius: var(--radius-card); max-height: 90vh; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Tablet — 640px+
+   Bredere content, nav blijft onderaan
+───────────────────────────────────────────────────────────────────── */
+@media (min-width: 640px) {
+  /* Content column breder en gecentreerd */
+  #app { max-width: 740px; }
+
+  /* Nav bar meegroeit met de content breedte */
+  .nav-bar { max-width: 740px; }
+
+  /* Iets meer horizontale ademruimte */
+  .view { padding: 16px 24px 90px; }
+
+  /* Toast binnen de content kolom */
+  .toast { max-width: calc(740px - 32px); }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Desktop — 1024px+
+   Brede gecentreerde content + 2-koloms dashboard
+───────────────────────────────────────────────────────────────────── */
+@media (min-width: 1024px) {
+  /* Content column breder en gecentreerd */
+  #app { max-width: 960px; }
+
+  /* Nav bar meegroeit met de content breedte */
+  .nav-bar { max-width: 960px; }
+
+  /* Ruimere horizontale padding */
+  .view { padding: 24px 40px 90px; }
+
+  /* Toast binnen de content kolom */
+  .toast { max-width: calc(960px - 32px); }
+
+  /* Dashboard: 2-koloms kaarten grid */
+  #view-dashboard #dash-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 20px;
+    row-gap: 12px;
+    align-items: start;
+  }
+  #view-dashboard #dash-content .card { margin-bottom: 0; }
+  /* Chart-kaart vult de volledige rechter kolom (spans 2 rijen):
+     Kolom 1: [Summary]  Kolom 2: [Chart  ]
+     Kolom 1: [Top cat.] Kolom 2: [Chart  ]
+     Beide kolommen zijn gevuld → nette uitlijning */
+  #view-dashboard #dash-content .card:has(.chart-container) { grid-row: span 2; }
+  /* Volle breedte: budget staafdiagram, "Recente transacties" header + transactie kaarten */
+  #view-dashboard #dash-content .budget-bar-card,
+  #view-dashboard #dash-content .flex-between,
+  #view-dashboard #dash-content .transaction-card,
+  #view-dashboard #dash-content .empty-state { grid-column: 1 / -1; }
+
+  /* Filter balk horizontaal */
+  .filter-bar { flex-direction: row; align-items: center; gap: 12px; }
+  .filter-bar-row { flex: 1; }
+  /* Sort select is een directe child van filter-bar (niet in filter-bar-row).
+     .select heeft width:100% als basis — overschrijf dit zodat de sort-dropdown
+     op content-breedte blijft en de budget/categorie-rij niet wegdrukt. */
+  .filter-bar > .select { width: auto; flex-shrink: 0; }
 }
