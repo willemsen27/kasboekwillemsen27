@@ -99,7 +99,7 @@ const Budgets = (() => {
       content.querySelectorAll('.budget-card[data-budget-id]').forEach(card => {
         card.addEventListener('click', e => {
           if (e.target.closest('.budget-card-edit')) return; // ignore edit button click
-          Transactions.renderWithFilter(card.dataset.budgetId);
+          Transactions.renderWithFilter(card.dataset.budgetId, _year, _month);
         });
       });
 

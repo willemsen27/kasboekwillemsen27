@@ -46,9 +46,10 @@ const Transactions = (() => {
     }
   }
 
-  function renderWithFilter(budgetId) {
+  function renderWithFilter(budgetId, year, month) {
     _activeBudgetId   = budgetId || '';
     _activeCategoryId = '';
+    if (year && month) { _year = year; _month = month; }
     Router.navigate('transactions');
   }
 

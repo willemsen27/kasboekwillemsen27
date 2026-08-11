@@ -24,7 +24,6 @@ const Settings = (() => {
         <button class="tab-btn ${_activeTab === 'categories' ? 'active' : ''}" data-tab="categories">Categorieën</button>
         <button class="tab-btn ${_activeTab === 'budgets'    ? 'active' : ''}" data-tab="budgets">Budgetten</button>
         <button class="tab-btn ${_activeTab === 'app'        ? 'active' : ''}" data-tab="app">App</button>
-        <button class="tab-btn ${_activeTab === 'sunscreen'  ? 'active' : ''}" data-tab="sunscreen">Zonnescherm</button>
       </div>
       <div id="settings-content"></div>`;
 
@@ -45,8 +44,6 @@ const Settings = (() => {
       await _renderCategories(content);
     } else if (_activeTab === 'budgets') {
       await _renderBudgets(content);
-    } else if (_activeTab === 'sunscreen') {
-      _renderSunscreen(content);
     } else {
       _renderApp(content);
     }
@@ -133,7 +130,7 @@ const Settings = (() => {
     const selColorHex  = /^#[0-9a-fA-F]{6}$/i.test(selColor) ? selColor : PASTEL_COLORS[0];
     const isCustomColor = !PASTEL_COLORS.includes(selColor);
 
-    const budgetOpts = `<option value="">Geen budget</option>` +
+    const budgetOpts = `<option value="">-- Kies een budget --</option>` +
       _budgets.map(b => `<option value="${escapeHtml(b.id)}" ${selBudget === b.id ? 'selected' : ''}>${escapeHtml(b.name)}</option>`).join('');
 
     const colorSwatches = PASTEL_COLORS.map(c =>
@@ -207,7 +204,8 @@ const Settings = (() => {
       const name     = modal.querySelector('#cm-name').value.trim();
       const color    = modal.querySelector('#cm-color').value;
       const budgetId = modal.querySelector('#cm-budget').value;
-      if (!name) { showToast('Voer een naam in.', 'error'); return; }
+      if (!name)     { showToast('Voer een naam in.', 'error'); return; }
+      if (!budgetId) { showToast('Selecteer een budget voor deze categorie.', 'error'); return; }
       const btn = modal.querySelector('#cm-save');
       btn.disabled = true; btn.textContent = 'Bezig…';
       try {
@@ -347,6 +345,41 @@ const Settings = (() => {
       </div>
 
       <div class="card settings-app-section">
+        <h3>Features</h3>
+        <p class="settings-info" style="margin-bottom:12px">Zet extra functies aan of uit. Wijzigingen worden direct toegepast.</p>
+        <div class="feature-toggle-row">
+          <div class="feature-toggle-info">
+            <div class="feature-toggle-name">Sparen</div>
+            <div class="feature-toggle-desc">Spaardoelen bijhouden</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="ft-savings" ${Features.get('savings') ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="feature-toggle-row">
+          <div class="feature-toggle-info">
+            <div class="feature-toggle-name">CSV Import</div>
+            <div class="feature-toggle-desc">Transacties importeren via CSV</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="ft-import" ${Features.get('import') ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="feature-toggle-row">
+          <div class="feature-toggle-info">
+            <div class="feature-toggle-name">Zonnescherm</div>
+            <div class="feature-toggle-desc">Zonnescherm bedienen via Tuya</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="ft-sunscreen" ${Features.get('sunscreen') ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card settings-app-section">
         <h3>Over de app</h3>
         <div class="settings-info">
           <p><strong>Kasboek Willemsen</strong> — Versie 1.0</p>
@@ -380,46 +413,13 @@ const Settings = (() => {
       btn.disabled    = false;
       btn.textContent = 'Test verbinding';
     });
-  }
 
-  // ─── Tab: Zonnescherm ─────────────────────────────────────────────────────
-  function _renderSunscreen(content) {
-    const hasApp = Config.isConfigured;
-
-    content.innerHTML = `
-      <div class="card settings-app-section">
-        <h3>Bediening</h3>
-        ${!hasApp
-          ? `<p class="connection-status error" style="margin:0">⚠️ Stel eerst de App-verbinding in (tabblad App).</p>`
-          : `<div class="sunscreen-controls">
-              <button class="sunscreen-btn-open" id="btn-uitrollen">☀️&nbsp; Uitrollen</button>
-              <button class="sunscreen-btn-stop" id="btn-stop">⏸&nbsp; Stop</button>
-              <button class="sunscreen-btn-close" id="btn-oprollen">🍂&nbsp; Oprollen</button>
-            </div>
-            <div id="sunscreen-status" style="margin-top:12px"></div>`}
-      </div>`;
-
-    if (hasApp) {
-      const statusEl = content.querySelector('#sunscreen-status');
-
-      async function _sendCmd(command, label) {
-        const btns = content.querySelectorAll('.sunscreen-btn-open, .sunscreen-btn-stop, .sunscreen-btn-close');
-        btns.forEach(b => { b.disabled = true; });
-        statusEl.innerHTML = `<div class="connection-status">⏳ ${escapeHtml(label)}…</div>`;
-        try {
-          await Api.controlSunscreen(command);
-          statusEl.innerHTML = `<div class="connection-status ok">✓ ${escapeHtml(label)} gestuurd!</div>`;
-        } catch (err) {
-          statusEl.innerHTML = `<div class="connection-status error">✗ ${escapeHtml(err.message)}</div>`;
-        } finally {
-          btns.forEach(b => { b.disabled = false; });
-        }
-      }
-
-      content.querySelector('#btn-uitrollen').addEventListener('click', () => _sendCmd('close', 'Uitrollen'));
-      content.querySelector('#btn-stop')     .addEventListener('click', () => _sendCmd('stop',  'Stop'));
-      content.querySelector('#btn-oprollen') .addEventListener('click', () => _sendCmd('open',  'Oprollen'));
-    }
+    ['savings', 'import', 'sunscreen'].forEach(name => {
+      content.querySelector(`#ft-${name}`).addEventListener('change', e => {
+        Features.set(name, e.target.checked);
+        showToast(e.target.checked ? 'Feature ingeschakeld' : 'Feature uitgeschakeld', 'success');
+      });
+    });
   }
 
   // ─── Modal helpers ──────────────────────────────────────────────────────────

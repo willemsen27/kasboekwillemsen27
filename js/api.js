@@ -209,6 +209,63 @@ const Api = (() => {
     return post({ action: 'deleteBudgetOverride', budgetId, month });
   }
 
+  // ─── Savings goals ───────────────────────────────────────────────────────────
+  async function getSavingsGoals() {
+    const key = 'getSavingsGoals';
+    if (_isFresh(key)) return _cacheGet(key);
+    const stale = _cacheGetStale(key);
+    if (stale) { _bgRefresh(key, () => get({ action: 'getSavingsGoals' }), _TTL_LONG); return stale; }
+    const data = await get({ action: 'getSavingsGoals' });
+    _cacheSet(key, data, _TTL_LONG);
+    return data;
+  }
+
+  async function getSavingsJobs() {
+    const key = 'getSavingsJobs';
+    if (_isFresh(key)) return _cacheGet(key);
+    const stale = _cacheGetStale(key);
+    if (stale) { _bgRefresh(key, () => get({ action: 'getSavingsJobs' }), _TTL_SHORT); return stale; }
+    const data = await get({ action: 'getSavingsJobs' });
+    _cacheSet(key, data, _TTL_SHORT);
+    return data;
+  }
+
+  async function createSavingsGoal({ name, currentBalance, targetAmount, targetDate, notes }) {
+    return post({ action: 'createSavingsGoal', name, currentBalance, targetAmount, targetDate, notes });
+  }
+
+  async function updateSavingsGoal(id, { name, currentBalance, targetAmount, targetDate, notes, active }) {
+    return post({ action: 'updateSavingsGoal', id, name, currentBalance, targetAmount, targetDate, notes, active });
+  }
+
+  async function deleteSavingsGoal(id) {
+    return post({ action: 'deleteSavingsGoal', id });
+  }
+
+  async function createSavingsRule({ goalId, type, amount, percentage, source, dayOfMonth, notes, active }) {
+    return post({ action: 'createSavingsRule', goalId, type, amount, percentage, source, dayOfMonth, notes, active });
+  }
+
+  async function updateSavingsRule(id, { goalId, type, amount, percentage, source, dayOfMonth, notes, active }) {
+    return post({ action: 'updateSavingsRule', id, goalId, type, amount, percentage, source, dayOfMonth, notes, active });
+  }
+
+  async function deleteSavingsRule(id) {
+    return post({ action: 'deleteSavingsRule', id });
+  }
+
+  async function executeSavingsJob(jobId) {
+    return post({ action: 'executeSavingsJob', jobId });
+  }
+
+  async function skipSavingsJob(jobId) {
+    return post({ action: 'skipSavingsJob', jobId });
+  }
+
+  async function addManualContribution({ goalId, amount, date, notes }) {
+    return post({ action: 'addManualContribution', goalId, amount, date, notes });
+  }
+
   // ─── Zonnescherm ──────────────────────────────────────────────────────────────────
   async function controlSunscreen(command) {
     return post({ action: 'controlSunscreen', command });
@@ -228,6 +285,10 @@ const Api = (() => {
     createCategory, updateCategory, deleteCategory,
     createBudget, updateBudget, deleteBudget,
     setBudgetOverride, deleteBudgetOverride,
+    getSavingsGoals, getSavingsJobs,
+    createSavingsGoal, updateSavingsGoal, deleteSavingsGoal,
+    createSavingsRule, updateSavingsRule, deleteSavingsRule,
+    executeSavingsJob, skipSavingsJob, addManualContribution,
     controlSunscreen, getTuyaConfig, saveTuyaConfig
   };
 })();

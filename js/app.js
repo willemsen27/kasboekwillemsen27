@@ -5,6 +5,8 @@ window.addEventListener('DOMContentLoaded', () => {
   Router.register('dashboard',    () => Dashboard.render());
   Router.register('transactions', () => Transactions.render());
   Router.register('budgets',      () => Budgets.render());
+  Router.register('savings',      () => Savings.render());
+  Router.register('sunscreen',    () => Sunscreen.render());
   Router.register('import',       () => Import.render());
   Router.register('settings',     () => Settings.render());
 
@@ -25,6 +27,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Init router — will trigger first render
   Router.init();
+
+  // Apply feature flags immediately after router init
+  Features.applyAll();
 
   // Redirect to settings if not configured
   if (!Config.isConfigured) {

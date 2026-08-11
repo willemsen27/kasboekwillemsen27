@@ -1,7 +1,7 @@
 // js/router.js — Hash-based SPA router
 
 const Router = (() => {
-  const VIEWS = ['dashboard', 'transactions', 'budgets', 'import', 'settings'];
+  const VIEWS = ['dashboard', 'transactions', 'budgets', 'savings', 'sunscreen', 'import', 'settings'];
   const handlers = {};
   let current = null;
 
