@@ -161,20 +161,27 @@ const Transactions = (() => {
       });
 
       // Compute totals
-      let totalSpent = 0, totalReceived = 0;
+      let totalSpent = 0;
       transactions.forEach(t => {
         const a = parseFloat(t.amount) || 0;
-        if (a >= 0) totalSpent    += a;
-        else        totalReceived += Math.abs(a);
+        if (a >= 0) totalSpent += a;
       });
-      const netto = totalReceived - totalSpent;
-      const nettoClass = netto >= 0 ? 'netto-positive' : 'netto-negative';
+      const [allBudgetStats] = await Promise.all([Api.getBudgetStats(from, to)]);
+      let totalBudget = 0;
+      if (_activeBudgetId) {
+        const bs = allBudgetStats.find(b => b.budget_id === _activeBudgetId);
+        totalBudget = bs ? bs.budget_amount : 0;
+      } else {
+        totalBudget = allBudgetStats.reduce((s, b) => s + b.budget_amount, 0);
+      }
+      const remaining      = totalBudget - totalSpent;
+      const remainingClass = remaining >= 0 ? 'netto-positive' : 'netto-negative';
 
       totalsEl.innerHTML = `
         <div class="totals-row">
           <span><span class="totals-item-label">Uitgegeven: </span><span class="totals-item-value">${formatCurrency(totalSpent)}</span></span>
-          <span><span class="totals-item-label">Ontvangen: </span><span class="totals-item-value received">${formatCurrency(totalReceived)}</span></span>
-          <span><span class="totals-item-label">Netto: </span><span class="totals-item-value ${nettoClass}">${netto < 0 ? '−\u00a0' : ''}${formatCurrency(netto)}</span></span>
+          <span><span class="totals-item-label">Totaal budget: </span><span class="totals-item-value">${formatCurrency(totalBudget)}</span></span>
+          <span><span class="totals-item-label">Resterend: </span><span class="totals-item-value ${remainingClass}">${remaining < 0 ? '−\u00a0' : ''}${formatCurrency(remaining)}</span></span>
         </div>`;
 
       // Sorteer client-side op basis van geselecteerde volgorde

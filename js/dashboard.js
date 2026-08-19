@@ -160,12 +160,24 @@ const Dashboard = (() => {
     // Summary amount card
     let summaryHtml = '';
     if (!_activeBudgetId) {
+      const totalBudget    = budgetStats.reduce((s, b) => s + b.budget_amount, 0);
+      const totalRemaining = totalBudget - totalSpent;
+      const remClass       = totalRemaining >= 0 ? 'remaining-positive' : 'remaining-negative';
       summaryHtml = `
-        <div class="card">
-          <div class="dashboard-summary">
-            <div class="dashboard-summary-label">Uitgegeven deze maand</div>
-            <div class="dashboard-summary-amount">${formatCurrency(totalSpent)}</div>
-            ${totalReceived > 0 ? `<div class="text-sm text-muted mt-12">Ontvangen: <strong>${formatCurrency(totalReceived)}</strong></div>` : ''}
+        <div class="card budget-summary-card">
+          <div class="budget-summary-grid">
+            <div class="budget-summary-cell">
+              <div class="budget-summary-cell-label">Totaal budget</div>
+              <div class="budget-summary-cell-value">${formatCurrency(totalBudget)}</div>
+            </div>
+            <div class="budget-summary-cell">
+              <div class="budget-summary-cell-label">Uitgegeven</div>
+              <div class="budget-summary-cell-value">${formatCurrency(totalSpent)}</div>
+            </div>
+            <div class="budget-summary-cell">
+              <div class="budget-summary-cell-label">Resterend</div>
+              <div class="budget-summary-cell-value ${remClass}">${totalRemaining < 0 ? '−\u00a0' : ''}${formatCurrency(totalRemaining)}</div>
+            </div>
           </div>
         </div>`;
     }
