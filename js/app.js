@@ -10,9 +10,11 @@ window.addEventListener('DOMContentLoaded', () => {
   Router.register('import',       () => Import.render());
   Router.register('settings',     () => Settings.render());
 
-  // Wire up nav items
+  // Wire up nav items (Meer-knop heeft geen data-view en wordt apart afgehandeld)
   document.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', () => Router.navigate(item.dataset.view));
+    item.addEventListener('click', () => {
+      if (item.dataset.view) Router.navigate(item.dataset.view);
+    });
   });
 
   // Wire up FAB

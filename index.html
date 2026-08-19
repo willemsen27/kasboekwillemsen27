@@ -96,6 +96,13 @@
         Budgetten
       </button>
 
+      <button class="nav-item" id="nav-meer-btn" style="display:none">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+        </svg>
+        Meer
+      </button>
+
       <button class="nav-item" data-view="import" style="display:none">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
           <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
@@ -132,6 +139,11 @@
       </button>
 
     </nav>
+
+    <!-- ── Nav overflow backdrop (zichtbaar donker vlak achter de lade) ── -->
+    <div id="nav-meer-backdrop" class="nav-meer-backdrop hidden"></div>
+    <!-- ── Nav overflow lade ── -->
+    <div id="nav-meer-drawer" class="nav-meer-drawer hidden"></div>
 
   </div><!-- /#app -->
 

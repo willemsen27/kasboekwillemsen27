@@ -16,6 +16,9 @@ const Router = (() => {
   function showView(view) {
     if (!VIEWS.includes(view)) view = 'dashboard';
 
+    // Sluit de Meer-lade bij elke navigatie
+    if (typeof Features !== 'undefined') Features.closeDrawer();
+
     // Show/hide view panels
     VIEWS.forEach(v => {
       const el = document.getElementById('view-' + v);
@@ -26,6 +29,13 @@ const Router = (() => {
     document.querySelectorAll('.nav-item').forEach(item => {
       item.classList.toggle('active', item.dataset.view === view);
     });
+
+    // Meer-knop actief als de huidige pagina in de lade zit
+    const meerBtn = document.getElementById('nav-meer-btn');
+    if (meerBtn && meerBtn.style.display !== 'none') {
+      const navItem = document.querySelector(`.nav-bar .nav-item[data-view="${view}"]`);
+      meerBtn.classList.toggle('active', !!navItem && navItem.style.display === 'none');
+    }
 
     current = view;
 

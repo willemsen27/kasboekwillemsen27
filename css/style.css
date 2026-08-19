@@ -343,6 +343,55 @@ img, svg { display: block; }
 .nav-item.active { color: var(--color-primary); }
 .nav-item:hover  { color: var(--color-primary); }
 
+/* ─── Nav overflow lade ──────────────────────────────────────────────────────── */
+.nav-meer-backdrop {
+  position: fixed;
+  top: 0; right: 0; bottom: var(--nav-height); left: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 190;
+}
+.nav-meer-drawer {
+  position: fixed;
+  bottom: var(--nav-height);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  background: var(--bg-card);
+  border-top: 1px solid var(--color-border);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.12);
+  z-index: 195;
+  padding: 8px 0 4px;
+}
+.nav-meer-handle {
+  width: 36px; height: 4px;
+  background: var(--color-border);
+  border-radius: 2px;
+  margin: 0 auto 8px;
+}
+.nav-meer-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text);
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s;
+}
+.nav-meer-item:active { background: var(--color-primary-lt); }
+.nav-meer-item svg { width: 22px; height: 22px; flex-shrink: 0; color: var(--color-text-muted); }
+.nav-meer-item.active { color: var(--color-primary); }
+.nav-meer-item.active svg { color: var(--color-primary); }
+
 /* ─── Modal ──────────────────────────────────────────────────────────────────── */
 .modal-overlay {
   position: fixed;
