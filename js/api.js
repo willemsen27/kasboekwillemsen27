@@ -92,7 +92,13 @@ const Api = (() => {
   async function get(params) {
     checkConfig();
     const res  = await fetch(buildUrl(params));
-    const json = await res.json();
+    if (!res.ok) throw new Error(`Server fout: ${res.status} ${res.statusText}`);
+    let json;
+    try {
+      json = await res.json();
+    } catch (e) {
+      throw new Error(`Ongeldige respons van server (geen JSON)`);
+    }
     if (!json.success) throw new Error(json.error || 'API fout');
     return json.data;
   }
@@ -104,7 +110,13 @@ const Api = (() => {
       method: 'POST',
       body: JSON.stringify({ apiKey: Config.apiKey, ...body })
     });
-    const json = await res.json();
+    if (!res.ok) throw new Error(`Server fout: ${res.status} ${res.statusText}`);
+    let json;
+    try {
+      json = await res.json();
+    } catch (e) {
+      throw new Error(`Ongeldige respons van server (geen JSON)`);
+    }
     if (!json.success) throw new Error(json.error || 'API fout');
     _cacheInvalidate(); // Invalidate all cache after any write operation
     return json.data;
