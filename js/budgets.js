@@ -125,7 +125,6 @@ const Budgets = (() => {
   function _budgetCard(b) {
     const pct         = _pct(b.spent, b.total_available);
     const barColor    = _progressColor(b.spent, b.total_available);
-    const badgeHtml   = b.has_override ? `<span class="budget-card-badge">↑ overschrijving</span>` : '';
     const contribHtml = b.contributions > 0
       ? `<div class="budget-card-contributions">+ ${formatCurrency(b.contributions)} ontvangen</div>`
       : '';
@@ -134,9 +133,8 @@ const Budgets = (() => {
       <div class="budget-card" data-budget-id="${escapeHtml(b.budget_id)}">
         <div class="budget-card-header">
           <div class="budget-card-name">${escapeHtml(b.budget_name)}</div>
-          ${badgeHtml}
           <div class="budget-card-edit">
-            <button class="btn-icon" data-action="edit-override" data-id="${escapeHtml(b.budget_id)}" title="Overschrijf budget">
+            <button class="btn-icon" data-action="edit-override" data-id="${escapeHtml(b.budget_id)}" title="Budget aanpassen">
               ${_iconEdit()}
             </button>
           </div>

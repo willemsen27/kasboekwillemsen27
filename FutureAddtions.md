@@ -1,0 +1,4 @@
+- Vanuit spaardoelen aangeven in een extra kolom hoeveel procent er gaat naar een spaardoel
+- Aangeven in transacties als iets uit een bepaald spaardoel komt
+    - hier nog over nadenken onder welk budget dit dan komt
+- Bij extra geld, aangeven als dit een spaardoel ding is, dan ook zien hoe de percentages zijn onderverdeeld. Dat de app zelf aangeeft hoeveel geld er naar bepaalde spaardoelen gaat

@@ -1403,3 +1403,103 @@ img, svg { display: block; }
 }
 .toggle-switch input:checked + .toggle-slider { background: var(--color-primary); }
 .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
+
+/* ─── Budget versioning mode selector ────────────────────────────────────────── */
+.mode-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mode-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-input);
+  background: var(--bg-card);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.mode-option:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-lt);
+}
+
+.mode-option input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.mode-option span {
+  font-size: 14px;
+  color: var(--color-text);
+  flex: 1;
+}
+
+/* ─── Future month picker ────────────────────────────────────────────────────── */
+.future-month-picker {
+  background: var(--bg-card);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-input);
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.month-picker-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.month-picker-display {
+  flex: 1;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* ─── Sub-tabs for budget settings ───────────────────────────────────────────── */
+.sub-tab-bar {
+  display: flex;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  padding: 4px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--color-border);
+  gap: 4px;
+}
+
+.sub-tab-btn {
+  flex: 1;
+  padding: 9px 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sub-tab-btn.active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+/* ─── Budget list with effective_from info ──────────────────────────────────── */
+.budget-list-effective {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+  font-weight: 500;
+}

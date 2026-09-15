@@ -209,6 +209,11 @@ const Api = (() => {
     return post({ action: 'deleteBudgetOverride', budgetId, month });
   }
 
+  // ─── Budget versioning ───────────────────────────────────────────────────────
+  async function setBudgetEffectiveFrom(budgetId, newAmount, effectiveFromMonth, name) {
+    return post({ action: 'setBudgetEffectiveFrom', budgetId, newAmount, effectiveFromMonth, name });
+  }
+
   // ─── Savings goals ───────────────────────────────────────────────────────────
   async function getSavingsGoals() {
     const key = 'getSavingsGoals';
@@ -284,7 +289,7 @@ const Api = (() => {
     createTransaction, updateTransaction, deleteTransaction,
     createCategory, updateCategory, deleteCategory,
     createBudget, updateBudget, deleteBudget,
-    setBudgetOverride, deleteBudgetOverride,
+    setBudgetOverride, deleteBudgetOverride, setBudgetEffectiveFrom,
     getSavingsGoals, getSavingsJobs,
     createSavingsGoal, updateSavingsGoal, deleteSavingsGoal,
     createSavingsRule, updateSavingsRule, deleteSavingsRule,
