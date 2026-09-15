@@ -411,10 +411,8 @@ const Savings = (() => {
           <div class="form-group">
             <label class="form-label">Bron</label>
             <select id="sav-r-source" class="select">
-              <option value="vakantiegeld"      ${rule?.source === 'vakantiegeld'      ? 'selected' : ''}>Vakantiegeld</option>
-              <option value="belastingaangifte" ${rule?.source === 'belastingaangifte' ? 'selected' : ''}>Belastingaangifte</option>
-              <option value="bonus"             ${rule?.source === 'bonus'             ? 'selected' : ''}>Bonus</option>
-              <option value="13e_maand"         ${rule?.source === '13e_maand'         ? 'selected' : ''}>13e maand</option>
+              <option value="vakantiegeld" ${rule?.source === 'vakantiegeld' ? 'selected' : ''}>Vakantiegeld</option>
+              <option value="overig"       ${rule?.source === 'overig' || rule?.source === 'belastingaangifte' || rule?.source === 'bonus' || rule?.source === '13e_maand' ? 'selected' : ''}>Overig (bijv. bonus of 13e maand)</option>
             </select>
           </div>
           <div class="form-group">
