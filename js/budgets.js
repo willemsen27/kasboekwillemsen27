@@ -154,12 +154,19 @@ const Budgets = (() => {
     return Math.min(100, Math.round((spent / available) * 100));
   }
 
+  // Groen: < 85% of precies 100%. Oranje: 85% t/m < 100%, of overschrijding
+  // tot 5% én max. €50. Rood: overschrijding van meer dan 5% of €50.
   function _progressColor(spent, available) {
-    if (!available || available <= 0) return spent > 0 ? 'var(--color-danger)' : 'var(--color-primary)';
-    const r = spent / available;
-    if (r >= 1.0) return 'var(--color-danger)';
-    if (r >= 0.75) return 'var(--color-warning)';
-    return 'var(--color-success)';
+    // Rekenen in centen om floating-point-ruis te voorkomen
+    const s = Math.round((spent || 0) * 100);
+    const a = Math.round((available || 0) * 100);
+    if (a <= 0) return s > 0 ? 'var(--color-danger)' : 'var(--color-primary)';
+    if (s > a) {
+      const over = s - a;
+      return over > a * 0.05 || over > 5000 ? 'var(--color-danger)' : 'var(--color-warning)';
+    }
+    if (s === a) return 'var(--color-success)';
+    return s / a >= 0.85 ? 'var(--color-warning)' : 'var(--color-success)';
   }
 
   function _chevLeft()  { return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>`; }

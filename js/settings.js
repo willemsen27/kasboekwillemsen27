@@ -132,8 +132,9 @@ const Settings = (() => {
     const selColorHex  = /^#[0-9a-fA-F]{6}$/i.test(selColor) ? selColor : PASTEL_COLORS[0];
     const isCustomColor = !PASTEL_COLORS.includes(selColor);
 
+    const parentBudgets = _budgets.filter(b => !b.budget_id);
     const budgetOpts = `<option value="">-- Kies een budget --</option>` +
-      _budgets.map(b => `<option value="${escapeHtml(b.id)}" ${selBudget === b.id ? 'selected' : ''}>${escapeHtml(b.name)}</option>`).join('');
+      parentBudgets.map(b => `<option value="${escapeHtml(b.id)}" ${selBudget === b.id ? 'selected' : ''}>${escapeHtml(b.name)}</option>`).join('');
 
     const colorSwatches = PASTEL_COLORS.map(c =>
       `<div class="color-swatch ${c === selColor ? 'selected' : ''}" data-color="${escapeHtml(c)}" style="background:${escapeHtml(c)}"></div>`
