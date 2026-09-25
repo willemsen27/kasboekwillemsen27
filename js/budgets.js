@@ -129,14 +129,17 @@ const Budgets = (() => {
       ? `<div class="budget-card-contributions">+ ${formatCurrency(b.contributions)} ontvangen</div>`
       : '';
 
+    // Een budget dat nog wordt opgeslagen kan pas aangepast worden als de server het bevestigd heeft
     return `
-      <div class="budget-card" data-budget-id="${escapeHtml(b.budget_id)}">
+      <div class="budget-card${b._pending ? ' pending' : ''}" data-budget-id="${escapeHtml(b.budget_id)}">
         <div class="budget-card-header">
           <div class="budget-card-name">${escapeHtml(b.budget_name)}</div>
           <div class="budget-card-edit">
-            <button class="btn-icon" data-action="edit-override" data-id="${escapeHtml(b.budget_id)}" title="Budget aanpassen">
+            ${b._pending
+              ? '<span class="btn-spinner dark" title="Bezig met opslaan…"></span>'
+              : `<button class="btn-icon" data-action="edit-override" data-id="${escapeHtml(b.budget_id)}" title="Budget aanpassen">
               ${_iconEdit()}
-            </button>
+            </button>`}
           </div>
         </div>
         <div class="progress-bar-track">

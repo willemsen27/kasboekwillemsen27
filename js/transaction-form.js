@@ -2,6 +2,7 @@
 
 const TransactionForm = (() => {
   let _editingId  = null;
+  let _editingTx  = null;      // de oorspronkelijke transactie bij bewerken (nodig om terug te kunnen draaien)
   let _type       = 'uitgave'; // 'uitgave' | 'ontvangen'
   let _categories = [];
 
@@ -10,6 +11,7 @@ const TransactionForm = (() => {
   // ─── Public API ─────────────────────────────────────────────────────────────
   async function openNew() {
     _editingId = null;
+    _editingTx = null;
     _type      = 'uitgave';
     await _open({
       date: todayISO(),
@@ -21,6 +23,7 @@ const TransactionForm = (() => {
 
   async function openEdit(transaction) {
     _editingId = transaction.id;
+    _editingTx = transaction;
     const isReceived = parseFloat(transaction.amount) < 0;
     _type = isReceived ? 'ontvangen' : 'uitgave';
     await _open({
@@ -44,8 +47,9 @@ const TransactionForm = (() => {
     overlay.classList.remove('hidden');
 
     try {
-      _categories = await Api.getCategories();
-      const budgets = await Api.getBudgets();
+      // Categorieën/budgetten die nog worden opgeslagen zijn nog niet te kiezen (de server kent ze nog niet)
+      _categories = (await Api.getCategories()).filter(c => !c._pending);
+      const budgets = (await Api.getBudgets()).filter(b => !b._pending);
       _renderForm(modal, prefill, budgets);
     } catch (err) {
       modal.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div>
@@ -176,27 +180,14 @@ const TransactionForm = (() => {
 
     const amount = _type === 'ontvangen' ? -amountRaw : amountRaw;
 
-    const btn = modal.querySelector('#tf-submit');
-    btn.disabled   = true;
-    btn.textContent = 'Bezig…';
-
-    try {
-      if (_editingId) {
-        await Api.updateTransaction(_editingId, { date, amount, categoryId, description });
-        showToast('Transactie opgeslagen', 'success');
-      } else {
-        await Api.createTransaction({ date, amount, categoryId, description });
-        showToast('Transactie toegevoegd', 'success');
-      }
-      close();
-      // Refresh current view
-      const cur = Router.getCurrent();
-      if (cur === 'dashboard')    Dashboard.render();
-      if (cur === 'transactions') Transactions.render();
-    } catch (err) {
-      showToast('Fout: ' + err.message, 'error');
-      btn.disabled    = false;
-      btn.textContent = _editingId ? 'Opslaan' : 'Toevoegen';
+    // Formulier meteen sluiten: de wijziging staat direct in de lijst (met een "bezig"-spinner)
+    // en wordt op de achtergrond opgeslagen. Mutations meldt zelf of het gelukt is.
+    const editingTx = _editingTx;
+    close();
+    if (editingTx) {
+      Mutations.updateTransaction(editingTx, { date, amount, categoryId, description });
+    } else {
+      Mutations.addTransaction({ date, amount, categoryId, description });
     }
   }
 

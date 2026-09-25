@@ -441,6 +441,75 @@ img, svg { display: block; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Kleine spinner in knoppen en labels */
+.btn-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  border: 2px solid rgba(255,255,255,0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+.btn-spinner.dark {
+  border-color: var(--color-border);
+  border-top-color: var(--color-primary);
+}
+
+/* Voortgangsbalk bovenaan: verschijnt pas na 0,3 s, zodat korte aanroepen niet flitsen */
+.busy-bar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  z-index: 500;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  transition: opacity 0.2s;
+}
+.busy-bar.active { opacity: 1; transition: opacity 0.2s 0.3s; }
+.busy-bar::before {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 40%;
+  background: var(--color-primary);
+  border-radius: 3px;
+  animation: busy-slide 1.1s ease-in-out infinite;
+}
+@keyframes busy-slide {
+  from { left: -40%; }
+  to   { left: 100%; }
+}
+
+.busy-chip {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  padding: 6px 14px;
+  background: var(--bg-card);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: var(--shadow-card);
+}
+
+/* Iets dat nog wordt opgeslagen (transactie, categorie, budget) */
+.transaction-card.pending,
+.category-card.pending,
+.budget-list-row.pending,
+.budget-card.pending { opacity: 0.6; }
+.transaction-card.pending .btn-spinner,
+.category-card.pending .btn-spinner,
+.budget-list-row.pending .btn-spinner,
+.budget-card.pending .btn-spinner { margin: 0; }
+
 .loading-state {
   display: flex;
   flex-direction: column;

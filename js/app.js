@@ -27,6 +27,27 @@ window.addEventListener('DOMContentLoaded', () => {
     TransactionForm.openNew();
   });
 
+  // Netwerkactiviteit: voortgangsbalk bovenaan + "Opslaan…" zolang er wordt weggeschreven
+  const busyBar  = document.getElementById('busy-bar');
+  const busyChip = document.getElementById('busy-chip');
+  Api.onBusy(({ reads, writes }) => {
+    busyBar.classList.toggle('active', reads + writes > 0);
+    busyChip.classList.toggle('hidden', writes === 0);
+  });
+
+  // Op de achtergrond ververste data die anders is dan wat er getoond wordt: scherm bijwerken.
+  // Niet tijdens het typen of kiezen in een veld op de pagina zelf.
+  Api.onChange(() => {
+    const a = document.activeElement;
+    if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && a.closest('.view')) return;
+    Router.refresh();
+  });
+
+  // Niet per ongeluk afsluiten terwijl er nog iets wordt opgeslagen
+  window.addEventListener('beforeunload', e => {
+    if (Api.pendingWrites() > 0) { e.preventDefault(); e.returnValue = ''; }
+  });
+
   // Init router — will trigger first render
   Router.init();
 
@@ -61,7 +82,8 @@ function showToast(message, type = 'success') {
   toast.classList.remove('hidden');
 
   if (_toastTimer) clearTimeout(_toastTimer);
+  // Foutmeldingen blijven langer staan, zodat je ze kunt lezen
   _toastTimer = setTimeout(() => {
     toast.classList.add('hidden');
-  }, 3000);
+  }, type === 'error' ? 7000 : 3000);
 }

@@ -57,5 +57,22 @@ const Router = (() => {
 
   function getCurrent() { return current; }
 
-  return { register, navigate, init, getCurrent };
+  // Teken het huidige scherm opnieuw (uit de cache, dus meestal direct). Alleen voor schermen
+  // die uit gecachete data bestaan; behoudt de scrollpositie. Meerdere aanroepen kort na elkaar
+  // worden samengevoegd.
+  const REFRESHABLE = ['dashboard', 'transactions', 'budgets', 'settings'];
+  let _refreshTimer = null;
+
+  function refresh() {
+    clearTimeout(_refreshTimer);
+    _refreshTimer = setTimeout(() => {
+      if (!REFRESHABLE.includes(current) || !handlers[current]) return;
+      const y = window.scrollY;
+      try {
+        Promise.resolve(handlers[current]()).finally(() => window.scrollTo(0, y));
+      } catch (err) { console.error('Router refresh error:', err); }
+    }, 30);
+  }
+
+  return { register, navigate, init, getCurrent, refresh };
 })();

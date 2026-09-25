@@ -160,31 +160,14 @@ const BudgetOverrideForm = (() => {
 
       _currentAmountValue = raw;
 
-      const btn = modal.querySelector('#bof-save');
-      btn.disabled = true;
-      btn.textContent = 'Bezig…';
-
-      try {
-        if (_selectedMode === 'current') {
-          // Only this month — use override
-          await Api.setBudgetOverride(_currentBudget.budget_id, _currentMonth, _currentAmountValue);
-          showToast('Budget voor deze maand ingesteld', 'success');
-        } else if (_selectedMode === 'permanent') {
-          // From this month onwards — use versioning
-          await Api.setBudgetEffectiveFrom(_currentBudget.budget_id, _currentAmountValue, _currentMonth, _currentNameValue);
-          showToast('Budget permanent aangepast', 'success');
-        } else if (_selectedMode === 'future') {
-          // Future date — use versioning
-          await Api.setBudgetEffectiveFrom(_currentBudget.budget_id, _currentAmountValue, _selectedFutureMonth, _currentNameValue);
-          showToast('Budget voor toekomstige maand ingesteld', 'success');
-        }
-
-        _close();
-        Budgets.render();
-      } catch (err) {
-        showToast('Fout: ' + err.message, 'error');
-        btn.disabled = false;
-        btn.textContent = 'Opslaan';
+      // Venster meteen sluiten: de nieuwe bedragen staan direct in beeld en het opslaan gebeurt op de
+      // achtergrond. Mutations meldt de uitkomst en draait de wijziging terug als het niet lukt.
+      _close();
+      if (_selectedMode === 'current') {
+        Mutations.setBudgetOverride(_currentBudget, _currentMonth, _currentAmountValue);
+      } else {
+        const month = _selectedMode === 'permanent' ? _currentMonth : _selectedFutureMonth;
+        Mutations.setBudgetVersion(_currentBudget, _currentAmountValue, month, _currentNameValue, _selectedMode);
       }
     });
 

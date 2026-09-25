@@ -24,7 +24,7 @@ Maak een nieuw Google Spreadsheet aan en voeg **vier werkbladen** toe met exact 
 |---|---|
 | `transactions` | `id` \| `date` \| `amount` \| `category_id` \| `description` \| `created_at` \| `updated_at` |
 | `categories` | `id` \| `name` \| `color` \| `budget_id` \| `created_at` |
-| `budgets` | `id` \| `name` \| `default_amount` \| `created_at` |
+| `budgets` | `id` \| `budget_id` \| `name` \| `default_amount` \| `created_at` \| `effective_from` (de volgorde maakt niet uit) |
 | `budget_overrides` | `id` \| `budget_id` \| `month` \| `amount` \| `created_at` |
 
 Kopieer voor elk blad de kolomnamen precies zoals hierboven in rij 1.

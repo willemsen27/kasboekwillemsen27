@@ -6,6 +6,7 @@ const Settings = (() => {
   let _categories     = [];
   let _budgets        = [];
   let _futureBudgets  = [];
+  let _budgetRows     = []; // alle rijen uit het budgets-tabblad (budgetten én versies)
   let _catSearch      = '';
 
   const PASTEL_COLORS = [
@@ -85,15 +86,17 @@ const Settings = (() => {
           : filtered.map(c => {
               const budgetName = c.budget_id && budgetMap[c.budget_id] ? budgetMap[c.budget_id] : '';
               return `
-                <div class="category-card">
+                <div class="category-card${c._pending ? ' pending' : ''}">
                   <div class="category-card-swatch" style="background:${escapeHtml(c.color)}"></div>
                   <div class="category-card-info">
                     <div class="category-card-name">${escapeHtml(c.name)}</div>
                     ${budgetName ? `<div class="category-card-budget">${escapeHtml(budgetName)}</div>` : ''}
                   </div>
                   <div class="category-card-actions">
-                    <button class="btn-icon" data-action="edit-cat" data-id="${escapeHtml(c.id)}" title="Bewerken">${_iconEdit()}</button>
-                    <button class="btn-icon" data-action="del-cat"  data-id="${escapeHtml(c.id)}" title="Verwijderen" style="background:var(--color-danger-lt);color:var(--color-danger)">${_iconDelete()}</button>
+                    ${c._pending
+                      ? '<span class="btn-spinner dark" title="Bezig met opslaan…"></span>'
+                      : `<button class="btn-icon" data-action="edit-cat" data-id="${escapeHtml(c.id)}" title="Bewerken">${_iconEdit()}</button>
+                    <button class="btn-icon" data-action="del-cat"  data-id="${escapeHtml(c.id)}" title="Verwijderen" style="background:var(--color-danger-lt);color:var(--color-danger)">${_iconDelete()}</button>`}
                   </div>
                 </div>`; }).join('')}
       </div>
@@ -114,11 +117,15 @@ const Settings = (() => {
     content.querySelectorAll('[data-action="del-cat"]').forEach(btn => {
       btn.addEventListener('click', async () => {
         if (!confirm('Categorie verwijderen? Transacties gekoppeld aan deze categorie worden ontkoppeld.')) return;
+        _spinIconButton(btn);
         try {
-          await Api.deleteCategory(btn.dataset.id);
+          await Mutations.deleteCategory(btn.dataset.id);
           showToast('Categorie verwijderd', 'success');
           await _renderCategories(content);
-        } catch (err) { showToast('Fout: ' + err.message, 'error'); }
+        } catch (err) {
+          showToast('Fout: ' + err.message, 'error');
+          await _renderCategories(content); // toon de werkelijke stand (ook bij een onduidelijke fout)
+        }
       });
     });
 
@@ -132,7 +139,8 @@ const Settings = (() => {
     const selColorHex  = /^#[0-9a-fA-F]{6}$/i.test(selColor) ? selColor : PASTEL_COLORS[0];
     const isCustomColor = !PASTEL_COLORS.includes(selColor);
 
-    const parentBudgets = _budgets.filter(b => !b.budget_id);
+    // Alleen hoofdbudgetten, en geen budget dat nog wordt opgeslagen (de server kent het nog niet)
+    const parentBudgets = _budgets.filter(b => !b.budget_id && !b._pending);
     const budgetOpts = `<option value="">-- Kies een budget --</option>` +
       parentBudgets.map(b => `<option value="${escapeHtml(b.id)}" ${selBudget === b.id ? 'selected' : ''}>${escapeHtml(b.name)}</option>`).join('');
 
@@ -203,28 +211,18 @@ const Settings = (() => {
 
     modal.querySelector('#cm-cancel').addEventListener('click', () => _removeModal());
 
-    modal.querySelector('#cm-save').addEventListener('click', async () => {
+    modal.querySelector('#cm-save').addEventListener('click', () => {
       const name     = modal.querySelector('#cm-name').value.trim();
       const color    = modal.querySelector('#cm-color').value;
       const budgetId = modal.querySelector('#cm-budget').value;
       if (!name)     { showToast('Voer een naam in.', 'error'); return; }
       if (!budgetId) { showToast('Selecteer een budget voor deze categorie.', 'error'); return; }
-      const btn = modal.querySelector('#cm-save');
-      btn.disabled = true; btn.textContent = 'Bezig…';
-      try {
-        if (isEdit) {
-          await Api.updateCategory(existing.id, { name, color, budgetId });
-          showToast('Categorie opgeslagen', 'success');
-        } else {
-          await Api.createCategory({ name, color, budgetId });
-          showToast('Categorie toegevoegd', 'success');
-        }
-        _removeModal();
-        await _renderCategories(content);
-      } catch (err) {
-        showToast('Fout: ' + err.message, 'error');
-        btn.disabled = false; btn.textContent = isEdit ? 'Opslaan' : 'Toevoegen';
-      }
+
+      // Venster meteen sluiten: de categorie staat direct in de lijst (met een spinner) en wordt op
+      // de achtergrond opgeslagen. Mutations ververst de lijst en meldt de uitkomst.
+      _removeModal();
+      if (isEdit) Mutations.updateCategory(existing, { name, color, budgetId });
+      else        Mutations.createCategory({ name, color, budgetId });
     });
   }
 
@@ -232,21 +230,29 @@ const Settings = (() => {
   async function _renderBudgets(content) {
     content.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>Laden…</span></div>';
     try {
-      _budgets = Config.isConfigured ? await Api.getBudgets() : [];
+      _budgetRows = Config.isConfigured ? await Api.getBudgets() : [];
 
-      // Separate current and future budgets based on effective_from
+      // Toekomstige versies (ingaand na de huidige maand) apart van wat nu geldt
       const currentYM = currentYearMonth();
       const currentMonth = currentYM.year + '-' + String(currentYM.month).padStart(2, '0');
 
-      _futureBudgets = _budgets.filter(b => b.effective_from && b.effective_from > currentMonth);
-      const currentBudgets = _budgets.filter(b => !b.effective_from || b.effective_from <= currentMonth);
-      _budgets = currentBudgets;
+      _futureBudgets = _budgetRows.filter(b => b.effective_from && String(b.effective_from) > currentMonth);
+
+      // Eén regel per budget: de versie die nu geldt (de meest recente die al is ingegaan)
+      const current = new Map();
+      _budgetRows.filter(b => !b.effective_from || String(b.effective_from) <= currentMonth).forEach(b => {
+        const parent = String(b.budget_id || b.id);
+        const seen = current.get(parent);
+        if (!seen || String(b.effective_from || '') > String(seen.effective_from || '')) current.set(parent, b);
+      });
+      _budgets = [...current.values()];
     } catch (err) {
       content.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">${escapeHtml(err.message)}</div></div>`;
       return;
     }
 
-    _budgetSubTab = 'current';
+    // Blijf op het tabblad waar je was, tenzij er geen toekomstige budgetten meer zijn
+    if (_budgetSubTab === 'future' && _futureBudgets.length === 0) _budgetSubTab = 'current';
     _renderBudgetContent(content);
   }
 
@@ -291,15 +297,17 @@ const Settings = (() => {
         ${budgets.length === 0
           ? '<div class="empty-state"><div class="empty-state-title">' + (isFuture ? 'Geen toekomstige budgetten' : 'Geen budgetten') + '</div></div>'
           : budgets.map(b => `
-              <div class="budget-list-row">
+              <div class="budget-list-row${b._pending ? ' pending' : ''}">
                 <div style="flex: 1;">
                   <div class="budget-list-name">${escapeHtml(b.name)}</div>
                   ${isFuture && b.effective_from ? `<div class="budget-list-effective">Geldig vanaf ${_formatYearMonth(b.effective_from)}</div>` : ''}
                 </div>
                 <div class="budget-list-amount">${formatCurrency(b.default_amount)}</div>
                 <div class="budget-list-actions">
-                  <button class="btn-icon" data-action="edit-bud" data-id="${escapeHtml(b.id)}" title="Bewerken">${_iconEdit()}</button>
-                  ${!isFuture ? `<button class="btn-icon" data-action="del-bud"  data-id="${escapeHtml(b.id)}" title="Verwijderen" style="background:var(--color-danger-lt);color:var(--color-danger)">${_iconDelete()}</button>` : ''}
+                  ${b._pending
+                    ? '<span class="btn-spinner dark" title="Bezig met opslaan…"></span>'
+                    : `<button class="btn-icon" data-action="edit-bud" data-id="${escapeHtml(b.id)}" title="Bewerken">${_iconEdit()}</button>
+                  <button class="btn-icon" data-action="del-bud"  data-id="${escapeHtml(b.id)}" title="Verwijderen" style="background:var(--color-danger-lt);color:var(--color-danger)">${_iconDelete()}</button>`}
                 </div>
               </div>`).join('')}
       </div>
@@ -308,6 +316,7 @@ const Settings = (() => {
     content.querySelectorAll('[data-action="edit-bud"]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const b = budgets.find(x => x.id === btn.dataset.id);
+        if (b && isFuture) { _openFutureBudgetModal(b); return; }
         if (b) {
           try {
             // Get current year-month for budget stats
@@ -315,9 +324,10 @@ const Settings = (() => {
             const monthStr = ym.year + '-' + String(ym.month).padStart(2, '0');
             const { from, to } = getMonthRange(ym.year, ym.month);
 
-            // Get budget stats to get the full budget object with override info
+            // Get budget stats to get the full budget object with override info.
+            // Een versierij heeft een eigen id; de statistieken staan onder het oorspronkelijke budget.
             const stats = await Api.getBudgetStats(from, to);
-            const budgetStats = stats.find(s => s.budget_id === b.id);
+            const budgetStats = stats.find(s => s.budget_id === (b.budget_id || b.id));
 
             if (budgetStats) {
               BudgetOverrideForm.open(budgetStats, monthStr, budgetStats.has_override ? budgetStats.override_amount : null);
@@ -333,12 +343,32 @@ const Settings = (() => {
 
     content.querySelectorAll('[data-action="del-bud"]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!confirm('Budget verwijderen? Categorieën gekoppeld aan dit budget worden ontkoppeld.')) return;
+        const b = budgets.find(x => x.id === btn.dataset.id);
+        if (!b) return;
+
+        // Toekomstige versie: alleen die ene versie verwijderen. Het budget zelf en de andere versies blijven.
+        if (isFuture) {
+          if (!confirm(`Toekomstig budget (vanaf ${_formatYearMonth(b.effective_from)}) verwijderen? Daarna geldt weer het bedrag van daarvoor.`)) return;
+          Mutations.deleteBudgetVersion(b); // direct uit de lijst; wordt teruggezet als opslaan mislukt
+          return;
+        }
+
+        // Het budget zelf (de regel kan een versie zijn: verwijder dan het oorspronkelijke budget)
+        const parentId = b.budget_id || b.id;
+        const hasFuture = _futureBudgets.some(f => String(f.budget_id) === String(parentId));
+        if (!confirm('Budget verwijderen? Categorieën gekoppeld aan dit budget worden ontkoppeld.' +
+                     (hasFuture ? ' Ook de toekomstige aanpassingen van dit budget worden verwijderd.' : ''))) return;
+        const host = content.closest('#settings-content');
+        _spinIconButton(btn);
         try {
-          await Api.deleteBudget(btn.dataset.id);
+          await Mutations.deleteBudget(parentId);
           showToast('Budget verwijderd', 'success');
-          await _renderBudgets(content.closest('#settings-content'));
-        } catch (err) { showToast('Fout: ' + err.message, 'error'); }
+        } catch (err) {
+          showToast('Fout: ' + err.message, 'error');
+          Api.cache.clear('getBudgets');
+          Api.cache.clear('getCategories');
+        }
+        await _renderBudgets(host);
       });
     });
 
@@ -346,6 +376,73 @@ const Settings = (() => {
     if (addBtn) {
       addBtn.addEventListener('click', () => _openBudgetAddModal(content));
     }
+  }
+
+  // Een toekomstige budgetversie aanpassen: bedrag en/of de maand waarop het ingaat.
+  function _openFutureBudgetModal(b) {
+    const cur   = currentYearMonth();
+    const first = nextMonth(cur.year, cur.month);            // vroegste toegestane maand: de volgende
+    const minIdx = first.year * 12 + (first.month - 1);
+    const [y0, m0] = String(b.effective_from).slice(0, 7).split('-').map(Number);
+    let idx = y0 * 12 + (m0 - 1);
+    const fmt = i => {
+      const yy = Math.floor(i / 12), mm = i % 12;
+      return { ym: yy + '-' + String(mm + 1).padStart(2, '0'), label: MONTHS_NL[mm] + ' ' + yy };
+    };
+
+    const modal = _injectModal(`
+      <div class="modal-title">Toekomstig budget aanpassen</div>
+      <div class="form-group">
+        <label class="form-label">Budget</label>
+        <div class="input" style="background:var(--bg-primary);cursor:default">${escapeHtml(b.name)}</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="fb-amount">Bedrag</label>
+        <div class="input-prefix-wrap">
+          <span class="input-prefix">€</span>
+          <input id="fb-amount" class="input" type="number" step="0.01" min="0" value="${escapeHtml(b.default_amount)}" placeholder="0,00">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Geldig vanaf</label>
+        <div class="future-month-picker" style="margin-bottom:0">
+          <div class="month-picker-controls">
+            <button class="btn-icon" id="fb-prev" type="button">‹</button>
+            <div class="month-picker-display" id="fb-month"></div>
+            <button class="btn-icon" id="fb-next" type="button">›</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-full" id="fb-save">Opslaan</button>
+        <button class="btn btn-secondary btn-full" id="fb-cancel">Annuleren</button>
+      </div>`);
+
+    const show = () => {
+      modal.querySelector('#fb-month').textContent = fmt(idx).label;
+      modal.querySelector('#fb-prev').disabled = idx <= minIdx;   // niet naar het verleden of de huidige maand
+    };
+    show();
+
+    modal.querySelector('#fb-prev').addEventListener('click', () => { if (idx > minIdx) { idx--; show(); } });
+    modal.querySelector('#fb-next').addEventListener('click', () => { idx++; show(); });
+    modal.querySelector('#fb-cancel').addEventListener('click', () => _removeModal());
+
+    modal.querySelector('#fb-save').addEventListener('click', () => {
+      const amount = parseFloat(modal.querySelector('#fb-amount').value);
+      if (isNaN(amount) || amount < 0) { showToast('Voer een geldig bedrag in.', 'error'); return; }
+      const month = fmt(idx).ym;
+
+      // Er kan maar één versie per maand zijn
+      const clash = _budgetRows.some(r => r.id !== b.id &&
+        String(r.budget_id || r.id) === String(b.budget_id) && String(r.effective_from) === month);
+      if (clash) { showToast('Er bestaat al een versie van dit budget voor die maand.', 'error'); return; }
+
+      _removeModal();
+      if (amount === parseFloat(b.default_amount) && month === String(b.effective_from)) return; // niets veranderd
+      // Direct zichtbaar in lijst en overzichten; opslaan gebeurt op de achtergrond
+      Mutations.updateBudgetVersion(b, { amount, month });
+    });
   }
 
   function _openBudgetAddModal(content) {
@@ -370,21 +467,15 @@ const Settings = (() => {
 
     modal.querySelector('#bm-cancel').addEventListener('click', () => _removeModal());
 
-    modal.querySelector('#bm-save').addEventListener('click', async () => {
+    modal.querySelector('#bm-save').addEventListener('click', () => {
       const name          = modal.querySelector('#bm-name').value.trim();
       const defaultAmount = parseFloat(modal.querySelector('#bm-amount').value) || 0;
       if (!name) { showToast('Voer een naam in.', 'error'); return; }
-      const btn = modal.querySelector('#bm-save');
-      btn.disabled = true; btn.textContent = 'Bezig…';
-      try {
-        await Api.createBudget({ name, defaultAmount });
-        showToast('Budget toegevoegd', 'success');
-        _removeModal();
-        await _renderBudgets(content);
-      } catch (err) {
-        showToast('Fout: ' + err.message, 'error');
-        btn.disabled = false; btn.textContent = 'Toevoegen';
-      }
+
+      // Venster meteen sluiten: het budget staat direct in de lijst (met een spinner) en wordt op de
+      // achtergrond opgeslagen. Mutations ververst de lijst en meldt de uitkomst.
+      _removeModal();
+      Mutations.createBudget({ name, defaultAmount });
     });
   }
 
@@ -408,6 +499,12 @@ const Settings = (() => {
         <button class="btn btn-full" id="app-save" style="margin-bottom:8px">Opslaan</button>
         <button class="btn btn-secondary btn-full" id="app-test">Test verbinding</button>
         <div id="app-status"></div>
+      </div>
+
+      <div class="card settings-app-section">
+        <h3>Gegevens</h3>
+        <p class="settings-info" style="margin-bottom:12px">De app onthoudt gegevens op dit apparaat zodat schermen snel openen. Zie je iets dat niet klopt, of heb je iets in de Google Sheet zelf aangepast? Vernieuw dan hier alles.</p>
+        <button class="btn btn-secondary btn-full" id="app-refresh">Gegevens vernieuwen</button>
       </div>
 
       <div class="card settings-app-section">
@@ -459,9 +556,16 @@ const Settings = (() => {
     content.querySelector('#app-save').addEventListener('click', () => {
       const url = content.querySelector('#app-url').value.trim();
       const key = content.querySelector('#app-key').value.trim();
+      const changed = url !== Config.scriptUrl || key !== Config.apiKey;
       Config.scriptUrl = url;
       Config.apiKey    = key;
+      if (changed) Api.clearCache(); // gegevens uit een andere sheet horen hier niet meer te staan
       showToast('Instellingen opgeslagen', 'success');
+    });
+
+    content.querySelector('#app-refresh').addEventListener('click', () => {
+      Api.clearCache();
+      showToast('Gegevens worden opnieuw geladen', 'success');
     });
 
     content.querySelector('#app-test').addEventListener('click', async () => {
@@ -471,7 +575,7 @@ const Settings = (() => {
       btn.textContent = 'Testen…';
       statusEl.innerHTML = '';
       try {
-        await Api.getCategories();
+        await Api.getCategories({ force: true }); // echt de server vragen, niet de cache
         statusEl.innerHTML = '<div class="connection-status ok">✓ Verbinding gelukt!</div>';
       } catch (err) {
         statusEl.innerHTML = `<div class="connection-status error">✗ ${escapeHtml(err.message)}</div>`;
@@ -486,6 +590,12 @@ const Settings = (() => {
         showToast(e.target.checked ? 'Feature ingeschakeld' : 'Feature uitgeschakeld', 'success');
       });
     });
+  }
+
+  // Vervangt het icoon van een kleine icoonknop door een spinner (tijdens het wachten op de server)
+  function _spinIconButton(btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-spinner dark" style="margin:0"></span>';
   }
 
   // ─── Modal helpers ──────────────────────────────────────────────────────────

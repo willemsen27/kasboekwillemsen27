@@ -32,10 +32,11 @@ const Dashboard = (() => {
     }
 
     try {
-      // Laad budgetten én categorieën samen (categorieën nodig voor client-side budgetfilter)
-      if (_budgets.length === 0 || _categories.length === 0) {
-        [_budgets, _categories] = await Promise.all([Api.getBudgets(), Api.getCategories()]);
-      }
+      // Laad budgetten én categorieën samen (categorieën nodig voor client-side budgetfilter).
+      // Altijd via Api (de cache): zo zie je wijzigingen uit Instellingen meteen, zonder eigen kopie.
+      [_budgets, _categories] = await Promise.all([Api.getBudgets(), Api.getCategories()]);
+      // Alleen echte budgetten: geen versierijen (die hebben een budget_id) en nog niet opgeslagen budgetten
+      _budgets = _budgets.filter(b => !b._pending && !b.budget_id);
       _renderFilterBar(el);
       await _loadAndRender(el);
     } catch (err) {
@@ -289,9 +290,10 @@ const Dashboard = (() => {
     const _pm = prevMonth(_year, _month), _nm = nextMonth(_year, _month);
     [_pm, _nm].forEach(ym => {
       const r = getMonthRange(ym.year, ym.month);
-      Api.getStats(r.from, r.to).catch(() => {});
-      Api.getTransactions(r).catch(() => {});
-      Api.getBudgetStats(r.from, r.to).catch(() => {});
+      const pre = { prefetch: true }; // alleen ophalen als er nog niets van die maand is
+      Api.getStats(r.from, r.to, undefined, pre).catch(() => {});
+      Api.getTransactions(r, pre).catch(() => {});
+      Api.getBudgetStats(r.from, r.to, pre).catch(() => {});
     });
   }
 

@@ -38,6 +38,8 @@ const Transactions = (() => {
         Api.getBudgets(),
         Api.getTransactions({ from, to }) // cache warming
       ]);
+      // Alleen echte budgetten: geen versierijen (die hebben een budget_id) en nog niet opgeslagen budgetten
+      _budgets = _budgets.filter(b => !b._pending && !b.budget_id);
       await _renderAll(el);
     } catch (err) {
       el.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div>
@@ -210,8 +212,9 @@ const Transactions = (() => {
         const catHtml = cat
           ? `<span class="chip"><span class="chip-dot" style="background:${escapeHtml(cat.color)}"></span>${escapeHtml(cat.name)}</span>`
           : `<span class="chip">Onbekend</span>`;
+        const pending = !!t._pending; // nog niet bevestigd door de server
         return `
-          <div class="transaction-card">
+          <div class="transaction-card${pending ? ' pending' : ''}">
             <div class="transaction-card-left">
               <div class="transaction-card-date">${formatDate(t.date)}</div>
               <div class="transaction-card-desc">${escapeHtml(t.description || '—')}</div>
@@ -222,12 +225,14 @@ const Transactions = (() => {
                 ${isReceived ? '−\u00a0' : ''}${formatCurrency(t.amount)}
               </div>
               <div class="transaction-card-actions">
-                <button class="btn-icon" title="Bewerken" data-action="edit" data-id="${escapeHtml(t.id)}">
+                ${pending
+                  ? '<span class="btn-spinner dark" title="Bezig met opslaan…"></span>'
+                  : `<button class="btn-icon" title="Bewerken" data-action="edit" data-id="${escapeHtml(t.id)}">
                   ${_iconEdit()}
                 </button>
                 <button class="btn-icon" title="Verwijderen" data-action="delete" data-id="${escapeHtml(t.id)}" style="background:var(--color-danger-lt);color:var(--color-danger)">
                   ${_iconDelete()}
-                </button>
+                </button>`}
               </div>
             </div>
           </div>`;
@@ -242,22 +247,18 @@ const Transactions = (() => {
       });
 
       listEl.querySelectorAll('[data-action="delete"]').forEach(btn => {
-        btn.addEventListener('click', async () => {
+        btn.addEventListener('click', () => {
           if (!confirm('Transactie verwijderen?')) return;
-          try {
-            await Api.deleteTransaction(btn.dataset.id);
-            showToast('Transactie verwijderd', 'success');
-            await _loadTransactions(el, from, to);
-          } catch (err) {
-            showToast('Fout: ' + err.message, 'error');
-          }
+          const tx = sorted.find(t => t.id === btn.dataset.id);
+          // Verdwijnt direct uit de lijst; Mutations draait het terug als opslaan mislukt
+          if (tx) Mutations.deleteTransaction(tx);
         });
       });
 
       // Prefetch vorige en volgende maand op de achtergrond — maakt maandnavigatie instant
       const _pm = prevMonth(_year, _month), _nm = nextMonth(_year, _month);
-      Api.getTransactions(getMonthRange(_pm.year, _pm.month)).catch(() => {});
-      Api.getTransactions(getMonthRange(_nm.year, _nm.month)).catch(() => {});
+      Api.getTransactions(getMonthRange(_pm.year, _pm.month), { prefetch: true }).catch(() => {});
+      Api.getTransactions(getMonthRange(_nm.year, _nm.month), { prefetch: true }).catch(() => {});
 
     } catch (err) {
       listEl.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div>

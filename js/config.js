@@ -60,6 +60,21 @@ function nextMonth(year, month) {
   return { year, month: month + 1 };
 }
 
+// Zet een knop in "bezig"-stand (spinner + tekst) of herstel hem
+function setButtonBusy(btn, busy, label) {
+  if (busy) {
+    if (btn.dataset.idleHtml === undefined) btn.dataset.idleHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-spinner"></span>' + escapeHtml(label || 'Bezig…');
+  } else {
+    btn.disabled = false;
+    if (btn.dataset.idleHtml !== undefined) {
+      btn.innerHTML = btn.dataset.idleHtml;
+      delete btn.dataset.idleHtml;
+    }
+  }
+}
+
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')

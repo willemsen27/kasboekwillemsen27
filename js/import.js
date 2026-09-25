@@ -19,7 +19,7 @@ const Import = (() => {
     }
 
     try {
-      _categories = await Api.getCategories();
+      _categories = (await Api.getCategories()).filter(c => !c._pending);
       const onbekend = _categories.find(c => String(c.name).toLowerCase() === 'onbekend');
       _onbekendId = onbekend ? onbekend.id : (_categories[0]?.id || '');
     } catch (err) {
