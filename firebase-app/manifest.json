@@ -1,0 +1,17 @@
+{
+  "name": "Kasboek Willemsen (Firebase)",
+  "short_name": "Kasboek FB",
+  "description": "Huishoudelijk kasboek met Firebase",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#6a9e7a",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

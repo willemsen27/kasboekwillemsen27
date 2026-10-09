@@ -1,0 +1,185 @@
+rules_version = '2';
+
+// Kasboek Willemsen (Firebase-versie) — beveiligingsregels
+//
+// Plak dit bestand in Firebase Console > Firestore Database > Rules en klik op "Publish".
+//
+// Model:
+//   households/{hid}                  naam, members[] (uid's), member_info{uid: {name,email}}, pending_invites[] (e-mails),
+//                                     features{} (alleen door een admin te wijzigen)
+//   households/{hid}/<verzameling>    alle data van dat huishouden (transactions, categories, ...)
+//   invites/{hid}__{e-mail}           uitnodiging voor een e-mailadres om een huishouden te joinen
+//   memberships/{e-mail}              welk huishouden bij dit e-mailadres hoort: maximaal één per e-mailadres
+//   admins/{e-mail}                   alleen handmatig in de Console aan te maken; zo'n adres is admin
+//
+// Een gebruiker mag alleen data lezen/schrijven van huishoudens waarvan hij/zij lid is.
+// Een admin ziet alle huishoudens, mag de features ervan instellen, de naam wijzigen, leden verwijderen en mensen
+// uitnodigen, en de financiële gegevens alleen lezen (meekijken); wijzigen kan een admin daar niet.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    // E-mailadres van de ingelogde (geverifieerde) gebruiker in kleine letters; alleen aanroepen na isVerified()
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function householdPath(hid) {
+      return /databases/$(database)/documents/households/$(hid);
+    }
+
+    function membershipPath(email) {
+      return /databases/$(database)/documents/memberships/$(email);
+    }
+
+    // Lid van het huishouden? (leest het huishouden-document zelf, dus ook bruikbaar in subcollecties)
+    function isMember(hid) {
+      return isSignedIn() && request.auth.uid in get(householdPath(hid)).data.members;
+    }
+
+    function isAdmin() {
+      return isVerified() && exists(/databases/$(database)/documents/admins/$(myEmail()));
+    }
+
+    // Bestaat er een uitnodiging voor het (geverifieerde) e-mailadres van deze gebruiker?
+    function hasInvite(hid) {
+      return isVerified() &&
+             exists(/databases/$(database)/documents/invites/$(hid + '__' + myEmail()));
+    }
+
+    function isSubset(a, b) {
+      return a.toSet().difference(b.toSet()).size() == 0;
+    }
+
+    // Na deze schrijfactie verwijst het membership-document van deze gebruiker naar dit huishouden.
+    // Omdat een membership-document niet gewijzigd kan worden, lukt dat alleen als dit e-mailadres
+    // nog bij geen enkel huishouden hoort.
+    function membershipPointsTo(hid) {
+      return getAfter(membershipPath(myEmail())).data.household_id == hid;
+    }
+
+    // ── Huishoudens ──────────────────────────────────────────────────────────
+    match /households/{hid} {
+      // Een lid mag het huishouden lezen (ook als query: where members array-contains uid); een admin ziet ze allemaal
+      allow read: if isSignedIn() && (request.auth.uid in resource.data.members || isAdmin());
+
+      // Nieuw huishouden: jij bent het enige lid, en het e-mailadres hoorde nog bij geen huishouden
+      allow create: if isVerified()
+                    && request.resource.data.keys().hasOnly(['name', 'members', 'member_info', 'pending_invites', 'created_at'])
+                    && request.resource.data.members == [request.auth.uid]
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.name.size() <= 80
+                    && membershipPointsTo(hid);
+
+      allow update: if
+        // Bestaand lid: naam wijzigen, iemand uitnodigen, jezelf of een ander lid verwijderen.
+        // Er kan langs deze weg niemand worden toegevoegd (alleen een uitgenodigde kan zichzelf toevoegen).
+        (isSignedIn()
+          && request.auth.uid in resource.data.members
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'members', 'member_info', 'pending_invites'])
+          && isSubset(request.resource.data.members, resource.data.members)
+          && request.resource.data.members.size() > 0
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 80)
+        ||
+        // Uitgenodigd (geverifieerd e-mailadres) en nog bij geen huishouden: jezelf toevoegen en de uitnodiging uit de lijst halen
+        (hasInvite(hid)
+          && !(request.auth.uid in resource.data.members)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'member_info', 'pending_invites'])
+          && request.resource.data.members == resource.data.members.concat([request.auth.uid])
+          && request.resource.data.member_info.diff(resource.data.member_info).affectedKeys().hasOnly([request.auth.uid])
+          && isSubset(request.resource.data.pending_invites, resource.data.pending_invites)
+          && membershipPointsTo(hid))
+        ||
+        // Admin: features instellen, en een huishouden beheren (naam, leden verwijderen, uitnodigingen).
+        // Een admin kan niemand rechtstreeks als lid toevoegen: iemand sluit zelf aan via een uitnodiging.
+        (isAdmin()
+          && (
+            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['features'])
+              && request.resource.data.features is map)
+            ||
+            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'members', 'member_info', 'pending_invites'])
+              && isSubset(request.resource.data.members, resource.data.members)
+              && request.resource.data.members.size() > 0
+              && request.resource.data.name is string
+              && request.resource.data.name.size() > 0
+              && request.resource.data.name.size() <= 80)
+          ));
+
+      // Huishoudens worden niet verwijderd via de app
+      allow delete: if false;
+    }
+
+    // ── Data van een huishouden ──────────────────────────────────────────────
+    match /households/{hid}/{coll}/{docId} {
+      // Leden lezen en schrijven; een admin mag alleen meelezen (om mee te kunnen kijken bij vragen)
+      allow read: if (isMember(hid) || isAdmin())
+        && coll in ['transactions', 'categories', 'budgets', 'budget_overrides',
+                    'savings_goals', 'savings_rules', 'savings_jobs'];
+      allow write: if isMember(hid)
+        && coll in ['transactions', 'categories', 'budgets', 'budget_overrides',
+                    'savings_goals', 'savings_rules', 'savings_jobs'];
+    }
+
+    // ── Uitnodigingen ────────────────────────────────────────────────────────
+    match /invites/{inviteId} {
+      // De uitgenodigde leest zijn/haar eigen uitnodigingen (query: where email == eigen e-mail)
+      allow read: if isVerified() && resource.data.email == myEmail();
+
+      // Leden nodigen anderen uit voor hun eigen huishouden. Het e-mailadres staat in kleine letters
+      // en hoort nog bij geen enkel huishouden.
+      allow create, update: if isSignedIn()
+                            && (isMember(request.resource.data.household_id) || isAdmin())
+                            && request.resource.data.email is string
+                            && request.resource.data.email == request.resource.data.email.lower()
+                            && inviteId == request.resource.data.household_id + '__' + request.resource.data.email
+                            && !exists(membershipPath(request.resource.data.email));
+
+      // Een lid trekt de uitnodiging in, of de uitgenodigde gebruikt/weigert hem
+      allow delete: if isSignedIn()
+                    && (isMember(resource.data.household_id)
+                        || isAdmin()
+                        || (isVerified() && resource.data.email == myEmail()));
+    }
+
+    // ── Koppeling e-mailadres → huishouden (maximaal één) ────────────────────
+    match /memberships/{email} {
+      // Je ziet alleen je eigen koppeling
+      allow get: if isVerified() && email == myEmail();
+
+      // Alleen voor jezelf, en alleen als je na dezelfde schrijfactie lid van dat huishouden bent.
+      // Een bestaand document kan niet overschreven worden, dus een tweede huishouden lukt niet.
+      allow create: if isVerified()
+                    && email == myEmail()
+                    && request.resource.data.keys().hasOnly(['household_id', 'uid', 'email', 'created_at'])
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.email == email
+                    && request.auth.uid in getAfter(householdPath(request.resource.data.household_id)).data.members;
+
+      allow update: if false;
+
+      // Opruimen als iemand het huishouden verlaat, uit het huishouden wordt gehaald, of een verouderde koppeling heeft:
+      // alleen als diegene na dezelfde schrijfactie geen lid meer is, door zichzelf of door een lid van dat huishouden.
+      // Een admin mag dit ook doen. Verwijderen van een niet-bestaand document is altijd goed (niets te beschermen).
+      allow delete: if resource == null
+                    || (isSignedIn()
+                        && !(resource.data.uid in getAfter(householdPath(resource.data.household_id)).data.members)
+                        && (resource.data.uid == request.auth.uid || isMember(resource.data.household_id) || isAdmin()));
+    }
+
+    // ── Admins: alleen lezen of je zelf admin bent; aanmaken kan alleen via de Console ──
+    match /admins/{email} {
+      allow get: if isVerified() && email == myEmail();
+    }
+  }
+}
