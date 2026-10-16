@@ -1,6 +1,8 @@
-# Kasboek Willemsen
+# Kasboek Willemsen — Firebase-versie
 
-Een persoonlijk kasboek voor twee — gebouwd op Google Sheets als database, Google Apps Script als API en GitHub Pages als hosting.
+Dezelfde kasboek-app als de Google Sheets-versie, maar gebouwd op Firebase (Firestore + Authentication) en gehost op GitHub Pages. Veel sneller, met inloggen en meerdere huishoudens.
+
+Dit is de standaardversie van de app. De oude Google Sheets-versie staat als archief in de map [`google-sheet-app/`](google-sheet-app/) en blijft bereikbaar op `/google-sheet-app/`.
 
 ---
 
@@ -10,133 +12,163 @@ Een persoonlijk kasboek voor twee — gebouwd op Google Sheets als database, Goo
 - Budgetten per maand beheren, met maandelijkse overschrijvingen
 - Dashboard met donut-grafiek, top-categorieën en recente transacties
 - CSV-import vanuit Regiobank
+- Spaardoelen met spaarafspraken en maandelijkse stortingen; een uitgevoerde storting komt als afschrijving bij de transacties
+- Zonnescherm bedienen (alleen voor huishoudens waarvoor een admin dit aanzet)
+- Meerdere huishoudens: elk huishouden ziet alleen zijn eigen gegevens
+- Inloggen met Google of met e-mail en wachtwoord
+- Gegevens staan direct klaar uit de cache en synchroniseren op de achtergrond; wijzigingen zijn meteen zichtbaar
 - Volledig Nederlandstalig, mobiel-first ontwerp
+
+---
+
+## Hoe werkt het?
+
+### Inloggen en huishoudens
+
+1. Je logt in met Google of e-mail en wachtwoord (e-mailadres moet geverifieerd zijn).
+2. Daarna maak je een huishouden aan, of je sluit aan bij een huishouden waarvoor je bent uitgenodigd.
+3. Alle leden van een huishouden hebben dezelfde rechten.
+
+**Eén huishouden per e-mailadres.** Een e-mailadres kan maar bij één huishouden horen. Wisselen tussen huishoudens kan niet; wie weg wil, verlaat het huishouden eerst.
+
+### Iemand uitnodigen
+
+1. Ga naar **Instellingen → App → Huishouden** en vul het e-mailadres van de ander in.
+2. De ander logt in met precies dat e-mailadres en kiest **Deelnemen**.
+
+Er wordt geen e-mail verstuurd; laat het de ander zelf weten.
+
+### Admins
+
+Een admin ziet alle huishoudens (Instellingen → App → **Beheer (admin)**) en kan:
+
+- **Meekijken** in de financiële gegevens, alleen lezen, bijvoorbeeld om te helpen bij een vraag
+- **Leden verwijderen** uit een huishouden
+- **Mensen uitnodigen** voor een huishouden (de ander sluit zelf aan via Deelnemen)
+- **Features instellen**, zoals het zonnescherm (Script URL en API-sleutel van dat huishouden)
+
+Wie admin is, bepaal je zelf in de Firebase Console (zie stap 4).
 
 ---
 
 ## Installatie stap voor stap
 
-### 1. Google Sheets aanmaken
+### 1. Firebase-project
 
-Maak een nieuw Google Spreadsheet aan en voeg **vier werkbladen** toe met exact deze namen (hoofdlettergevoelig):
+1. Maak in de [Firebase Console](https://console.firebase.google.com) een project aan en voeg een **Web-app** toe.
+2. Zet de configuratie (apiKey, projectId, enz.) in `js/firebase-init.js`.
+3. **Authentication → Sign-in method**: zet **Google** en **E-mail/wachtwoord** aan.
+4. **Authentication → Settings → Authorized domains**: voeg het domein van je GitHub Pages toe (bijvoorbeeld `willemsen27.github.io`). `localhost` staat er standaard bij.
+5. **Firestore Database → Create database**, kies een regio (bijvoorbeeld Nederland / `europe-west4`) en production mode.
 
-| Bladnaam | Kolommen (rij 1, exact deze namen) |
-|---|---|
-| `transactions` | `id` \| `date` \| `amount` \| `category_id` \| `description` \| `created_at` \| `updated_at` |
-| `categories` | `id` \| `name` \| `color` \| `budget_id` \| `created_at` |
-| `budgets` | `id` \| `budget_id` \| `name` \| `default_amount` \| `created_at` \| `effective_from` (de volgorde maakt niet uit) |
-| `budget_overrides` | `id` \| `budget_id` \| `month` \| `amount` \| `created_at` |
+> De Firebase-configuratie in `firebase-init.js` is geen geheim; de beveiliging zit in de Firestore-regels hieronder.
 
-Kopieer voor elk blad de kolomnamen precies zoals hierboven in rij 1.
+### 2. Beveiligingsregels publiceren
 
----
+1. Open **Firestore Database → Rules**.
+2. Plak de volledige inhoud van `firestore.rules`.
+3. Klik op **Publish**.
 
-### 2. Apps Script instellen
+Publiceer opnieuw na elke wijziging in `firestore.rules`.
 
-1. Open in je Google Spreadsheet: **Extensies → Apps Script**
-2. Verwijder de bestaande code in `Code.gs`
-3. Plak de volledige inhoud van `apps-script/Code.gs` uit deze repository
-4. Sla op (Ctrl+S)
+### 3. GitHub Pages
 
-#### API-sleutel instellen
+1. Zet de bestanden in de hoofdmap van je repository en push.
+2. **Settings → Pages**: Source = Deploy from a branch, branch `main`, folder `/root`.
+3. De app staat dan op `https://<gebruikersnaam>.github.io/<repo>/` (of zonder `<repo>` als de repo `<gebruikersnaam>.github.io` heet).
 
-1. Ga in de Apps Script editor naar **Project-instellingen** (tandwiel-icoon links)
-2. Scroll naar **Scripteigenschappen**
-3. Klik **Eigenschap toevoegen**
-4. Naam: `API_KEY`
-5. Waarde: een zelfgekozen geheime sleutel (bijv. `MijnGeheimeSleutel123!`)
-6. Klik **Opslaan**
+### 4. Eerste admin aanmaken
 
-#### Standaarddata invoegen (eenmalig)
+Een collectie in Firestore bestaat pas als er een document in staat, en admins kunnen niet vanuit de app worden aangemaakt (anders kan iedereen zichzelf admin maken).
 
-1. Ga terug naar de editor
-2. Selecteer bovenaan de functie `seedData` uit de dropdown
-3. Klik **▶ Uitvoeren**
-4. Geef toestemming als dat gevraagd wordt
-5. Controleer het logboek: je ziet "✓ 13 budgets aangemaakt" en "✓ 26 categorieën aangemaakt"
+1. **Firestore Database → Data → Start collection**
+2. Collection ID: `admins`
+3. Document ID: jouw e-mailadres, **in kleine letters**, exact zoals je inlogt
+4. Voeg één veld toe, bijvoorbeeld `note` (string) met waarde `admin`
+5. **Save**
 
-#### Implementeren als web-app
+Log daarna opnieuw in; **Beheer (admin)** verschijnt onder Instellingen → App. Nog een admin? Voeg een extra document toe. Document weghalen = geen admin meer.
 
-1. Klik op **Implementeren → Nieuwe implementatie**
-2. Kies als type: **Web-app**
-3. Instellingen:
-   - **Uitvoeren als**: Ik (jouw Google-account)
-   - **Wie heeft toegang**: Iedereen
-4. Klik **Implementeren**
-5. **Kopieer de web-app URL** — je hebt deze straks nodig
+### 5. Gegevens overzetten uit de oude app (optioneel)
 
-> ⚠️ Als je de Apps Script code later aanpast, moet je opnieuw implementeren via **Implementeren → Implementaties beheren → Bewerken** en een nieuwe versie kiezen.
+1. Log in en ga naar **Instellingen → App → Migreren uit de oude app**.
+2. Vul de Script URL en API-sleutel van de oude app in (te vinden in de Instellingen van de oude app).
+3. Klik **Gegevens ophalen**, controleer het overzicht en klik **Nu importeren**.
 
----
+De oude app wordt alleen gelezen. Opnieuw uitvoeren is veilig: bestaande items worden overschreven, niet verdubbeld. Niet meegenomen: inactieve spaardoelen, historie van spaarstortingen en de zonnescherminstellingen.
 
-### 3. GitHub Pages instellen
+### 6. Regiobank CSV importeren
 
-1. Maak een nieuw repository aan op GitHub (of gebruik een bestaand)
-2. Kopieer alle bestanden uit deze repository naar je GitHub repo
-3. Ga naar **Settings → Pages**
-4. Stel in:
-   - **Source**: Deploy from a branch
-   - **Branch**: `main` (of `master`), folder `/root`
-5. Wacht 1-2 minuten; GitHub geeft je een URL zoals `https://jouwgebruikersnaam.github.io/jouw-repo/`
+1. Exporteer in Regiobank Online je transacties als **CSV**.
+2. Open de app → **Import** en sleep het bestand erheen.
+3. Pas per rij de categorie aan en vink rijen uit die je niet wilt importeren.
+4. Klik **Importeer X transacties**.
+
+**Af** = uitgave (positief bedrag), **Bij** = ontvangst (negatief bedrag).
 
 ---
 
-### 4. App eerste keer openen
+## Lokaal draaien
 
-1. Open de GitHub Pages URL in je browser (bij voorkeur op telefoon)
-2. Je wordt automatisch doorgestuurd naar **Instellingen → App**
-3. Vul in:
-   - **Script URL**: de web-app URL uit stap 2
-   - **API Sleutel**: de sleutel die je in Script Properties hebt ingesteld
-4. Klik **Opslaan**
-5. Klik **Test verbinding** — je ziet "✓ Verbinding gelukt!"
-6. Ga naar het **Dashboard** — je bent klaar!
+De app moet via een webserver draaien (niet door het bestand te openen). Vanuit de hoofdmap van de repository:
 
----
+```
+python -m http.server 8080 --bind 127.0.0.1
+```
 
-### 5. Regiobank CSV importeren
-
-1. Log in op **Regiobank Online**
-2. Ga naar **Betaalrekening → Transacties**
-3. Klik op **Exporteren** of **Download**
-4. Kies als formaat: **CSV**
-5. Sla het bestand op
-6. Open de app → **Import**
-7. Sleep het CSV-bestand naar de dropzone of klik om te bladeren
-8. Bekijk de voorbeeldtabel:
-   - **Af** = uitgave (positief bedrag, rood)
-   - **Bij** = ontvangst (negatief bedrag, groen)
-   - Pas per rij de **categorie** aan
-   - Zet vinkje weg voor rijen die je niet wilt importeren
-9. Klik **Importeer X transacties**
-
-> Het CSV-formaat van Regiobank heeft kolommen: `Datum; Naam; Rekeningnummer; Tegenrekening; Code; Af Bij; Bedrag; Mutatiesoort; Mededelingen`
+Open daarna `http://localhost:8080/`. `localhost` is al toegestaan voor inloggen.
 
 ---
 
 ## Bestandsstructuur
 
 ```
-kasboek-willemsen/
 ├── index.html                  # Hoofdpagina (SPA shell)
+├── firestore.rules             # Beveiligingsregels (plakken in de Firebase Console)
+├── manifest.json, favicon.svg
 ├── css/
-│   └── style.css               # Volledig stylesheet (CSS-variabelen, componenten)
+│   └── style.css               # Stylesheet
 ├── js/
-│   ├── config.js               # Configuratie + globale hulpfuncties
-│   ├── api.js                  # API-wrapper voor alle Apps Script aanroepen
+│   ├── firebase-init.js        # Firebase-configuratie en SDK (beschikbaar als window.FB)
+│   ├── config.js               # Sessiestatus + globale hulpfuncties
+│   ├── features.js             # Per huishouden in-/uitgeschakelde onderdelen (zonnescherm)
+│   ├── api.js                  # Alle lees- en schrijfacties op Firestore, met cache en live updates
+│   ├── mutations.js            # Wijzigingen met melding bij slagen of mislukken
+│   ├── auth.js                 # Inloggen, huishouden aanmaken/deelnemen/uitnodigen, meekijken
+│   ├── admin.js                # Adminbeheer: huishoudens, leden, uitnodigingen, features
+│   ├── migrate.js              # Eenmalige overzetting uit de oude Google Sheet-app
 │   ├── router.js               # Hash-gebaseerde SPA-router
-│   ├── app.js                  # Bootstrap: router init, FAB, toast
-│   ├── dashboard.js            # Dashboard-weergave met Chart.js grafiek
+│   ├── app.js                  # Bootstrap
+│   ├── dashboard.js            # Dashboard met Chart.js grafiek
 │   ├── transactions.js         # Transactielijst met filters
 │   ├── transaction-form.js     # Modal: transactie toevoegen/bewerken
-│   ├── import.js               # CSV-import (Regiobank formaat)
-│   ├── budgets.js              # Budgettenweergave met voortgangsbalk
+│   ├── import.js               # CSV-import (Regiobank)
+│   ├── budgets.js              # Budgetten met voortgangsbalk
 │   ├── budget-override-form.js # Modal: maandelijks budget overschrijven
-│   └── settings.js             # Instellingen (categorieën, budgetten, app)
-├── apps-script/
-│   └── Code.gs                 # Google Apps Script backend (volledig)
-└── README.md                   # Deze handleiding
+│   ├── savings.js              # Spaardoelen, afspraken en stortingen
+│   ├── sunscreen.js            # Zonnescherm bedienen
+│   └── settings.js             # Instellingen (categorieën, budgetten, huishouden, admin, migratie)
+├── README.md                   # Deze handleiding
+└── google-sheet-app/           # Archief: de oude versie met Google Sheet als database
 ```
+
+---
+
+## Datamodel (Firestore)
+
+| Pad | Inhoud |
+|---|---|
+| `households/{id}` | naam, `members` (uid's), `member_info` (naam + e-mail per uid), `pending_invites` (e-mails), `features` |
+| `households/{id}/transactions` | transacties |
+| `households/{id}/categories` | categorieën |
+| `households/{id}/budgets` | budgetten (inclusief versies per ingangsmaand) |
+| `households/{id}/budget_overrides` | overschrijvingen per budget en maand |
+| `households/{id}/savings_goals` | spaardoelen |
+| `households/{id}/savings_rules` | spaarafspraken |
+| `households/{id}/savings_jobs` | stortingen (openstaand, uitgevoerd, overgeslagen) |
+| `invites/{huishouden}__{e-mail}` | uitnodiging voor een e-mailadres |
+| `memberships/{e-mail}` | bij welk huishouden dit e-mailadres hoort (maximaal één) |
+| `admins/{e-mail}` | alleen via de Console aan te maken; zo'n adres is admin |
 
 ---
 
@@ -146,31 +178,48 @@ kasboek-willemsen/
 |---|---|
 | Frontend | Vanilla HTML5, CSS3, JavaScript ES2020+ |
 | Hosting | GitHub Pages (statisch, geen buildstap) |
-| Backend/API | Google Apps Script Web App |
-| Database | Google Sheets |
+| Database | Firebase Firestore (met lokale cache voor snel openen) |
+| Inloggen | Firebase Authentication (Google en e-mail/wachtwoord) |
 | Grafiek | Chart.js (CDN) |
 | Fonts | Inter via Google Fonts |
 
-### CORS-aanpak
+### Beveiliging
 
-Apps Script Web Apps sturen een 302-redirect. Om CORS-problemen te vermijden worden POST-verzoeken **zonder** `Content-Type`-header verstuurd (plain text body). Dit is een "simple CORS request" dat geen preflight vereist. Apps Script voegt automatisch `Access-Control-Allow-Origin: *` toe.
+De toegang wordt volledig afgedwongen door `firestore.rules`, niet door de app:
+
+- Een gebruiker leest en schrijft alleen gegevens van het eigen huishouden.
+- Een e-mailadres kan maar aan één huishouden gekoppeld zijn.
+- Een admin leest alle huishoudens, maar kan de financiële gegevens alleen lezen.
+- Meekijken als admin is in de app ook geblokkeerd voor wijzigingen en toont een banner.
+
+### Spaarstortingen en transacties
+
+Voer je een storting uit (of vul je een spaardoel handmatig aan), dan komt er ook een afschrijving bij de transacties:
+
+- omschrijving = naam van het spaardoel
+- categorie = de categorie "Sparen" (of een categorie met "spaar"/"sparen" in de naam); is die er niet, dan blijft de categorie leeg
+
+Een transactie verwijderen of aanpassen draait het saldo van het spaardoel niet terug.
 
 ---
 
 ## Veelgestelde vragen
 
-**Q: Moet ik de API-sleutel geheim houden?**  
-A: Ja. Deel de script URL en API-sleutel niet publiek. Ze staan opgeslagen in `localStorage` van de browser en worden niet naar derden verstuurd.
+**Q: Ik zie "Beheer (admin)" niet.**
+A: Controleer of het document in `admins` precies jouw e-mailadres (kleine letters) als id heeft, of de nieuwste regels zijn gepubliceerd en of je e-mailadres geverifieerd is. Log daarna opnieuw in.
 
-**Q: Kan ik de app ook op desktop gebruiken?**  
-A: Ja, de app werkt op zowel mobiel als desktop. De lay-out is geoptimaliseerd voor 480px breedte maar werkt prima op grotere schermen.
+**Q: Uitnodigen of deelnemen mislukt.**
+A: Het e-mailadres hoort waarschijnlijk al bij een ander huishouden, of de regels zijn niet gepubliceerd. De uitgenodigde moet inloggen met exact het uitgenodigde e-mailadres.
 
-**Q: Hoe voeg ik een maandelijks budget toe voor een specifieke maand?**  
-A: Ga naar **Budgetten**, navigeer naar de gewenste maand en klik op het potlood-icoon naast een budget. Vul het overschrijvingsbedrag in.
+**Q: Kan ik meerdere huishoudens hebben?**
+A: Nee, een e-mailadres hoort bij maximaal één huishouden.
 
-**Q: Kan ik meerdere mensen toegang geven?**  
-A: Ja. Deel de GitHub Pages URL en de API-sleutel met je partner. Iedereen met de juiste instellingen kan de app gebruiken.
+**Q: Werkt de app offline?**
+A: Gegevens die eerder zijn geladen staan in de lokale cache en zijn ook zonder verbinding zichtbaar en aan te passen; wijzigingen worden gesynchroniseerd zodra er weer verbinding is.
+
+**Q: Hoe voeg ik een maandelijks budget toe voor een specifieke maand?**
+A: Ga naar **Budgetten**, navigeer naar de gewenste maand en klik op het potlood-icoon naast een budget.
 
 ---
 
-*Kasboek Willemsen — versie 1.0*
+*Kasboek Willemsen — Firebase-versie*

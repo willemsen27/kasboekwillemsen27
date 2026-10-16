@@ -1,29 +1,47 @@
 // js/app.js — Application bootstrap
 
+let _started = false;
+
+// Wordt door Auth aangeroepen zodra er een ingelogde gebruiker met een huishouden is
+function startApp() {
+  if (_started) {
+    // Opnieuw ingelogd of ander huishouden: scherm opnieuw opbouwen uit de nieuwe data
+    Router.refresh();
+    return;
+  }
+  _started = true;
+
+  Router.init();
+  Features.applyAll();
+
+  // Preload huidige maand op de achtergrond; de luisteraars vullen de cache al voor de eerste navigatie
+  const ym = currentYearMonth();
+  const r  = getMonthRange(ym.year, ym.month);
+  Promise.all([
+    Api.getCategories({ prefetch: true }),
+    Api.getBudgets({ prefetch: true }),
+    Api.getTransactions({ from: r.from, to: r.to }, { prefetch: true })
+  ]).catch(() => {});
+}
+
 window.addEventListener('DOMContentLoaded', () => {
-  // Register view handlers
   Router.register('dashboard',    () => Dashboard.render());
   Router.register('transactions', () => Transactions.render());
   Router.register('budgets',      () => Budgets.render());
   Router.register('savings',      () => Savings.render());
-  Router.register('sunscreen',    () => Sunscreen.render());
   Router.register('import',       () => Import.render());
+  Router.register('sunscreen',    () => Sunscreen.render());
   Router.register('settings',     () => Settings.render());
 
-  // Wire up nav items (Meer-knop heeft geen data-view en wordt apart afgehandeld)
+  // Meer-knop heeft geen data-view en wordt apart afgehandeld
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => {
       if (item.dataset.view) Router.navigate(item.dataset.view);
     });
   });
 
-  // Wire up FAB
   document.getElementById('fab-add').addEventListener('click', () => {
-    if (!Config.isConfigured) {
-      showToast('Configureer de app eerst via Instellingen.', 'error');
-      Router.navigate('settings');
-      return;
-    }
+    if (!Config.isConfigured) return;
     TransactionForm.openNew();
   });
 
@@ -35,9 +53,9 @@ window.addEventListener('DOMContentLoaded', () => {
     busyChip.classList.toggle('hidden', writes === 0);
   });
 
-  // Op de achtergrond ververste data die anders is dan wat er getoond wordt: scherm bijwerken.
-  // Niet tijdens het typen of kiezen in een veld op de pagina zelf.
+  // Data die op de achtergrond veranderd is: scherm bijwerken, behalve tijdens het typen in een veld
   Api.onChange(() => {
+    if (!Config.isConfigured) return;
     const a = document.activeElement;
     if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && a.closest('.view')) return;
     Router.refresh();
@@ -48,28 +66,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (Api.pendingWrites() > 0) { e.preventDefault(); e.returnValue = ''; }
   });
 
-  // Init router — will trigger first render
-  Router.init();
-
-  // Apply feature flags immediately after router init
-  Features.applyAll();
-
-  // Redirect to settings if not configured
-  if (!Config.isConfigured) {
-    Router.navigate('settings');
-  } else {
-    // Preload huidige maand data op de achtergrond zodat de cache al gevuld is
-    // vóór de eerste navigatie. Fouten worden stil genegeerd.
-    const _ym = currentYearMonth();
-    const _r  = getMonthRange(_ym.year, _ym.month);
-    Promise.all([
-      Api.getCategories(),
-      Api.getBudgets(),
-      Api.getTransactions({ from: _r.from, to: _r.to }),
-      Api.getStats(_r.from, _r.to),
-      Api.getBudgetStats(_r.from, _r.to)
-    ]).catch(() => {});
-  }
+  Auth.init(startApp);
 });
 
 // ─── Toast ───────────────────────────────────────────────────────────────────

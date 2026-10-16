@@ -365,8 +365,6 @@ const Settings = (() => {
           showToast('Budget verwijderd', 'success');
         } catch (err) {
           showToast('Fout: ' + err.message, 'error');
-          Api.cache.clear('getBudgets');
-          Api.cache.clear('getCategories');
         }
         await _renderBudgets(host);
       });
@@ -481,29 +479,16 @@ const Settings = (() => {
 
   // ─── Tab: App ───────────────────────────────────────────────────────────────
   function _renderApp(content) {
-    const maskedUrl = Config.scriptUrl
-      ? Config.scriptUrl.substring(0, 40) + '…'
-      : '(niet ingesteld)';
-
     content.innerHTML = `
-      <div class="card settings-app-section">
-        <h3>Verbinding</h3>
-        <div class="form-group">
-          <label class="form-label" for="app-url">Script URL</label>
-          <input id="app-url" class="input" type="url" placeholder="https://script.google.com/macros/s/…/exec" value="${escapeHtml(Config.scriptUrl)}">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="app-key">API Sleutel</label>
-          <input id="app-key" class="input" type="password" placeholder="Jouw API sleutel" value="${escapeHtml(Config.apiKey)}">
-        </div>
-        <button class="btn btn-full" id="app-save" style="margin-bottom:8px">Opslaan</button>
-        <button class="btn btn-secondary btn-full" id="app-test">Test verbinding</button>
-        <div id="app-status"></div>
-      </div>
+      <div class="card settings-app-section" id="household-card"></div>
+
+      <div class="card settings-app-section" id="admin-card" style="display:none"></div>
+
+      <div class="card settings-app-section" id="migrate-card"></div>
 
       <div class="card settings-app-section">
         <h3>Gegevens</h3>
-        <p class="settings-info" style="margin-bottom:12px">De app onthoudt gegevens op dit apparaat zodat schermen snel openen. Zie je iets dat niet klopt, of heb je iets in de Google Sheet zelf aangepast? Vernieuw dan hier alles.</p>
+        <p class="settings-info" style="margin-bottom:12px">De app onthoudt gegevens op dit apparaat zodat schermen snel openen en houdt ze op de achtergrond actueel. Zie je iets dat niet klopt? Vernieuw dan hier alles.</p>
         <button class="btn btn-secondary btn-full" id="app-refresh">Gegevens vernieuwen</button>
       </div>
 
@@ -530,61 +515,26 @@ const Settings = (() => {
             <span class="toggle-slider"></span>
           </label>
         </div>
-        <div class="feature-toggle-row">
-          <div class="feature-toggle-info">
-            <div class="feature-toggle-name">Zonnescherm</div>
-            <div class="feature-toggle-desc">Zonnescherm bedienen via Tuya</div>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="ft-sunscreen" ${Features.get('sunscreen') ? 'checked' : ''}>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
       </div>
 
       <div class="card settings-app-section">
         <h3>Over de app</h3>
         <div class="settings-info">
-          <p><strong>Kasboek Willemsen</strong> — Versie 1.0</p>
-          <p style="margin-top:8px">Een persoonlijk kasboek voor twee.</p>
-          <p style="margin-top:8px">
-            <a href="https://github.com" target="_blank" rel="noopener">GitHub repository</a>
-          </p>
+          <p><strong>Kasboek Willemsen</strong> — Firebase-versie</p>
+          <p style="margin-top:8px">Een gedeeld kasboek per huishouden.</p>
         </div>
       </div>`;
 
-    content.querySelector('#app-save').addEventListener('click', () => {
-      const url = content.querySelector('#app-url').value.trim();
-      const key = content.querySelector('#app-key').value.trim();
-      const changed = url !== Config.scriptUrl || key !== Config.apiKey;
-      Config.scriptUrl = url;
-      Config.apiKey    = key;
-      if (changed) Api.clearCache(); // gegevens uit een andere sheet horen hier niet meer te staan
-      showToast('Instellingen opgeslagen', 'success');
-    });
+    Auth.renderHouseholdCard(content.querySelector('#household-card'));
+    Admin.renderCard(content.querySelector('#admin-card'));
+    Migrate.renderCard(content.querySelector('#migrate-card'));
 
     content.querySelector('#app-refresh').addEventListener('click', () => {
       Api.clearCache();
       showToast('Gegevens worden opnieuw geladen', 'success');
     });
 
-    content.querySelector('#app-test').addEventListener('click', async () => {
-      const statusEl = content.querySelector('#app-status');
-      const btn      = content.querySelector('#app-test');
-      btn.disabled   = true;
-      btn.textContent = 'Testen…';
-      statusEl.innerHTML = '';
-      try {
-        await Api.getCategories({ force: true }); // echt de server vragen, niet de cache
-        statusEl.innerHTML = '<div class="connection-status ok">✓ Verbinding gelukt!</div>';
-      } catch (err) {
-        statusEl.innerHTML = `<div class="connection-status error">✗ ${escapeHtml(err.message)}</div>`;
-      }
-      btn.disabled    = false;
-      btn.textContent = 'Test verbinding';
-    });
-
-    ['savings', 'import', 'sunscreen'].forEach(name => {
+    ['savings', 'import'].forEach(name => {
       content.querySelector(`#ft-${name}`).addEventListener('change', e => {
         Features.set(name, e.target.checked);
         showToast(e.target.checked ? 'Feature ingeschakeld' : 'Feature uitgeschakeld', 'success');

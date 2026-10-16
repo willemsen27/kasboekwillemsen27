@@ -1,11 +1,13 @@
-// js/config.js — Configuration stored in localStorage
+// js/config.js — Sessiestatus (ingelogde gebruiker + huishouden) en algemene hulpfuncties
 
+// Wordt door Auth ingevuld. "Geconfigureerd" = ingelogd én lid van een huishouden.
 const Config = {
-  get scriptUrl() { return localStorage.getItem('kasboek_script_url') || ''; },
-  get apiKey()    { return localStorage.getItem('kasboek_api_key')    || ''; },
-  set scriptUrl(v){ localStorage.setItem('kasboek_script_url', v); },
-  set apiKey(v)   { localStorage.setItem('kasboek_api_key', v);    },
-  get isConfigured() { return !!(this.scriptUrl && this.apiKey); }
+  user: null,        // Firebase-gebruiker
+  household: null,   // { id, name, members[], member_info{}, pending_invites[], features{} }
+  isAdmin: false,    // true als het e-mailadres in de Firestore-collectie "admins" staat
+  readOnly: false,   // true als een admin meekijkt in een huishouden (alleen lezen)
+  get householdId() { return this.household ? this.household.id : null; },
+  get isConfigured() { return !!(this.user && this.household); }
 };
 
 // ─── Global utilities ─────────────────────────────────────────────────────────

@@ -168,6 +168,7 @@ const Auth = (() => {
       ${_brand('Bevestig je e-mailadres')}
       <p class="auth-text">We hebben een e-mail gestuurd naar <strong>${escapeHtml(user.email || '')}</strong>.
         Klik op de link in die e-mail en kom dan hier terug.</p>
+      <p class="auth-text">Niets ontvangen? Kijk ook in je <strong>spam</strong>-map en kies daar "Geen spam".</p>
       <button class="btn btn-full" id="ver-done" type="button">Ik heb bevestigd</button>
       <button class="btn btn-secondary btn-full" id="ver-resend" type="button" style="margin-top:8px">E-mail opnieuw versturen</button>
       <div class="auth-links"><button class="auth-link" id="ver-out" type="button">Uitloggen</button></div>`);

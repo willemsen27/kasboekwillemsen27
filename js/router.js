@@ -1,7 +1,7 @@
 // js/router.js — Hash-based SPA router
 
 const Router = (() => {
-  const VIEWS = ['dashboard', 'transactions', 'budgets', 'savings', 'sunscreen', 'import', 'settings'];
+  const VIEWS = ['dashboard', 'transactions', 'budgets', 'savings', 'import', 'sunscreen', 'settings'];
   const handlers = {};
   let current = null;
 
@@ -60,7 +60,7 @@ const Router = (() => {
   // Teken het huidige scherm opnieuw (uit de cache, dus meestal direct). Alleen voor schermen
   // die uit gecachete data bestaan; behoudt de scrollpositie. Meerdere aanroepen kort na elkaar
   // worden samengevoegd.
-  const REFRESHABLE = ['dashboard', 'transactions', 'budgets', 'settings'];
+  const REFRESHABLE = ['dashboard', 'transactions', 'budgets', 'savings', 'settings'];
   let _refreshTimer = null;
 
   function refresh() {

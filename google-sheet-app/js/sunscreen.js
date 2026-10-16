@@ -1,14 +1,14 @@
-// js/sunscreen.js — Zonneschermbediening (alleen zichtbaar voor huishoudens met features.sunscreen.enabled)
+// js/sunscreen.js — Standalone sunscreen view
 
 const Sunscreen = (() => {
-  function render() {
+  async function render() {
     const el = document.getElementById('view-sunscreen');
 
-    if (!Config.isConfigured || !Features.get('sunscreen')) {
+    if (!Config.isConfigured) {
       el.innerHTML = `<div class="empty-state">
-        <div class="empty-state-icon">☀️</div>
-        <div class="empty-state-title">Zonnescherm niet beschikbaar</div>
-        <p class="settings-info">Het zonnescherm is niet ingeschakeld voor dit huishouden.</p>
+        <div class="empty-state-icon">⚙️</div>
+        <div class="empty-state-title">Nog niet ingesteld</div>
+        <button class="btn btn-secondary" onclick="Router.navigate('settings')">Naar instellingen</button>
       </div>`;
       return;
     }

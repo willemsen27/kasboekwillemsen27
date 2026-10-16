@@ -1,7 +1,7 @@
 {
-  "name": "Kasboek Willemsen (Firebase)",
-  "short_name": "Kasboek FB",
-  "description": "Huishoudelijk kasboek met Firebase",
+  "name": "Kasboek Willemsen",
+  "short_name": "Kasboek",
+  "description": "Huishoudelijk kasboek voor Willemsen",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#ffffff",

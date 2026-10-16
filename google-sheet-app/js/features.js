@@ -1,8 +1,8 @@
 // js/features.js — Feature flags persisted in localStorage
 
 const Features = (() => {
-  const _KEY      = 'kasboek_fb_features';
-  const _DEFAULTS = { savings: false, import: false };
+  const _KEY      = 'kasboek_features';
+  const _DEFAULTS = { savings: false, import: false, sunscreen: false };
   const _OPTIONAL = ['import', 'savings', 'sunscreen'];
   let _wired = false;
 
@@ -13,20 +13,8 @@ const Features = (() => {
     } catch { return { ..._DEFAULTS }; }
   }
 
-  // Het zonnescherm staat niet lokaal aan of uit, maar wordt per huishouden bepaald (households/{id}.features.sunscreen)
-  function _sunscreenEnabled() {
-    const s = typeof Config !== 'undefined' && Config.household && Config.household.features
-      ? Config.household.features.sunscreen : null;
-    // Tijdens meekijken (alleen lezen) bedient een admin het zonnescherm van een ander huishouden niet
-    return !!(s && s.enabled === true && s.script_url && s.api_key && !Config.readOnly);
-  }
-
-  function _flags() {
-    return { ..._load(), sunscreen: _sunscreenEnabled() };
-  }
-
   function get(name) {
-    return _flags()[name] === true;
+    return _load()[name] === true;
   }
 
   function set(name, value) {
@@ -37,7 +25,7 @@ const Features = (() => {
   }
 
   function applyAll() {
-    const f = _flags();
+    const f = _load();
     _apply('savings',   f.savings);
     _apply('import',    f.import);
     _apply('sunscreen', f.sunscreen);
@@ -65,7 +53,7 @@ const Features = (() => {
       meerBackdrop.addEventListener('click', closeDrawer);
     }
 
-    const f = _flags();
+    const f = _load();
     const enabled = _OPTIONAL.filter(v => f[v]);
 
     if (enabled.length >= 2) {
